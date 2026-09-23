@@ -43,7 +43,7 @@ Sistema web especializado com interface inspirada no **Google Gemini**, desenvol
 
 5. **Configuração da Chave Gemini API:**
    - Clique em **"Configurar IA"** no topo da tela para inserir sua chave gratuita do [Google AI Studio](https://aistudio.google.com/).
-   - Permite escolher entre os modelos `gemini-2.5-flash`, `gemini-1.5-flash` ou `gemini-1.5-pro`.
+   - Permite escolher entre os modelos `gemini-1.5-flash` (padrão estável), `gemini-2.0-flash` ou `gemini-1.5-pro`.
    - Caso não insira uma chave, o sistema opera no modo integrado com casos reais pré-carregados (Lucas de Sousa Ribeiro / Mazagão).
 
 ---

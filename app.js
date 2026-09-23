@@ -8,8 +8,12 @@ class PericiaApp {
     this.formData = JSON.parse(JSON.stringify(DEFAULT_FORM_DATA));
     this.stagedFiles = [];
     this.chatHistory = [];
-    this.apiKey = localStorage.getItem("gemini_api_key") || "";
-    this.selectedModel = localStorage.getItem("gemini_model") || "gemini-2.5-flash";
+    let storedModel = localStorage.getItem("gemini_model");
+    if (!storedModel || storedModel === "gemini-2.5-flash") {
+      storedModel = "gemini-1.5-flash";
+      localStorage.setItem("gemini_model", storedModel);
+    }
+    this.selectedModel = storedModel;
     this.isProcessing = false;
 
     this.initElements();
@@ -165,6 +169,15 @@ class PericiaApp {
         console.warn("Leitura direta do PDF indisponível:", err);
       }
     }
+  }
+
+  readFileAsBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = (e) => reject(e);
+      reader.readAsDataURL(file);
+    });
   }
 
   formatFileSize(bytes) {
@@ -378,11 +391,21 @@ Formato obrigatório das chaves:
       contentsParts.push({ text: systemPrompt + "\n\nInstruções/Anotações do usuário:\n" + userText });
 
       for (const f of files) {
-        if (f.base64) {
+        let base64Data = f.base64;
+        if (!base64Data && f.fileRef && (f.type.startsWith("image/") || f.type === "application/pdf" || f.name.endsWith(".pdf"))) {
+          try {
+            base64Data = await this.readFileAsBase64(f.fileRef);
+          } catch (e) {
+            console.warn("Falha ao converter arquivo para base64:", e);
+          }
+        }
+
+        if (base64Data) {
+          const mime = f.type || (f.name.endsWith(".pdf") ? "application/pdf" : "image/jpeg");
           contentsParts.push({
             inline_data: {
-              mime_type: f.type,
-              data: f.base64
+              mime_type: mime,
+              data: base64Data
             }
           });
         } else if (f.extractedText) {
@@ -392,21 +415,61 @@ Formato obrigatório das chaves:
         }
       }
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.selectedModel}:generateContent?key=${this.apiKey}`;
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: contentsParts }],
-          generationConfig: {
-            temperature: 0.2,
-            responseMimeType: "application/json"
-          }
-        })
-      });
+      // Lista de modelos suportados para fallback automático caso ocorra 404 (modelo descontinuado ou nome inválido)
+      const candidateModels = [
+        this.selectedModel,
+        "gemini-1.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-pro"
+      ].filter((v, i, a) => v && v !== "gemini-2.5-flash" && a.indexOf(v) === i);
 
-      if (!response.ok) {
-        throw new Error(`Erro na API Gemini (${response.status}): ${response.statusText}`);
+      let response = null;
+      let lastErrorMessage = "";
+      let successfulModel = "";
+
+      for (const model of candidateModels) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
+          response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: contentsParts }],
+              generationConfig: {
+                temperature: 0.2,
+                responseMimeType: "application/json"
+              }
+            })
+          });
+
+          if (response.ok) {
+            successfulModel = model;
+            break;
+          }
+
+          // Se deu erro, obtém o detalhe do erro retornado pela Google API
+          const errData = await response.json().catch(() => null);
+          const errMsg = errData?.error?.message || response.statusText || `Código ${response.status}`;
+          lastErrorMessage = errMsg;
+
+          // Se foi 404 (modelo não encontrado), tenta o próximo modelo na cadeia
+          if (response.status === 404) {
+            console.warn(`Modelo ${model} retornou 404. Tentando próximo modelo...`);
+            continue;
+          } else {
+            // Para outros erros (ex: 400 API_KEY_INVALID), interrompe e informa diretamente
+            throw new Error(`Erro na API Gemini (${response.status}): ${errMsg}`);
+          }
+        } catch (e) {
+          if (e.message.includes("400") || e.message.includes("403")) {
+            throw e;
+          }
+          lastErrorMessage = e.message;
+        }
+      }
+
+      if (!response || !response.ok) {
+        throw new Error(lastErrorMessage || "Nenhum modelo Gemini respondeu com sucesso.");
       }
 
       const data = await response.json();
@@ -426,7 +489,7 @@ Formato obrigatório das chaves:
       this.hideTypingIndicator();
 
       this.addAssistantMessage(
-        `Analisei com sucesso os arquivos fornecidos via **Gemini Multimodal**.
+        `Analisei com sucesso os arquivos fornecidos via **Gemini Multimodal (${successfulModel})**.
         
 Todas as 8 seções do **Formulário de Perícia Socioeconômica** foram preenchidas automaticamente e sincronizadas no painel ao lado.
 
