@@ -1,0 +1,1078 @@
+/* =====================================================================
+   DESIGN SYSTEM - GEMINI LAUDO PERICIAL AI
+   Interface inspirada no Google Gemini (Material 3 + Glassmorphism + A4 Document)
+   ===================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Inter:wght@300;400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&display=swap');
+
+:root {
+  --font-main: 'Google Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-doc: 'Arial', 'Times New Roman', serif;
+  
+  /* Paleta Gemini Dark Mode (Padrão) */
+  --bg-primary: #131314;
+  --bg-surface: #1e1f20;
+  --bg-surface-elevated: #282a2c;
+  --bg-surface-hover: #333538;
+  
+  --text-primary: #e3e3e3;
+  --text-secondary: #c4c7c5;
+  --text-tertiary: #8e918f;
+  
+  --gemini-blue: #4285f4;
+  --gemini-purple: #9b72cb;
+  --gemini-pink: #d96570;
+  --gemini-gradient: linear-gradient(135deg, #4285f4 0%, #9b72cb 50%, #d96570 100%);
+  --gemini-border: rgba(255, 255, 255, 0.1);
+  --gemini-glow: rgba(155, 114, 203, 0.25);
+  
+  --card-border: #3c4043;
+  --badge-bg: #2d2f31;
+  --success-color: #34a853;
+  --warning-color: #fbbc04;
+  --accent-color: #8ab4f8;
+
+  /* Estilos do Papel A4 Oficial */
+  --paper-bg: #ffffff;
+  --paper-text: #1a1a1a;
+  --paper-border: #b0bec5;
+  --paper-header-bg: #f0f4f8;
+  --paper-accent: #003366;
+  
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Modo Claro Alternativo */
+[data-theme="light"] {
+  --bg-primary: #f8fafd;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #f1f3f4;
+  --bg-surface-hover: #e8eaed;
+  
+  --text-primary: #1f1f1f;
+  --text-secondary: #444746;
+  --text-tertiary: #747775;
+  
+  --card-border: #dadce0;
+  --badge-bg: #e8f0fe;
+  --gemini-border: rgba(0, 0, 0, 0.08);
+  --gemini-glow: rgba(66, 133, 244, 0.15);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-main);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* =====================================================================
+   HEADER SUPERIOR
+   ===================================================================== */
+.app-header {
+  height: 56px;
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--gemini-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  z-index: 10;
+}
+
+.brand-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-sparkle {
+  width: 28px;
+  height: 28px;
+  background: var(--gemini-gradient);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 12px var(--gemini-glow);
+}
+
+.brand-sparkle svg {
+  width: 18px;
+  height: 18px;
+  fill: white;
+}
+
+.brand-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-title span.badge-pro {
+  background: var(--gemini-gradient);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: white;
+  letter-spacing: 0.5px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-icon {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.btn-icon:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.btn-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 18px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--gemini-border);
+  background: var(--bg-surface-elevated);
+  color: var(--text-primary);
+  transition: var(--transition-fast);
+}
+
+.btn-header:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--accent-color);
+}
+
+.btn-header.primary {
+  background: var(--gemini-gradient);
+  color: white;
+  border: none;
+  box-shadow: 0 2px 8px var(--gemini-glow);
+}
+
+.btn-header.primary:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+/* =====================================================================
+   LAYOUT PRINCIPAL - SPLIT VIEW (CHAT | DOCUMENTO A4)
+   ===================================================================== */
+.main-container {
+  flex: 1;
+  display: flex;
+  height: calc(100vh - 56px);
+  overflow: hidden;
+}
+
+/* Painel Esquerdo: Chat Gemini */
+.chat-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-primary);
+  border-right: 1px solid var(--gemini-border);
+  position: relative;
+  min-width: 380px;
+  max-width: 55%;
+  transition: max-width 0.3s ease;
+}
+
+.chat-pane.collapsed {
+  display: none;
+}
+
+.chat-pane.expanded {
+  max-width: 100%;
+}
+
+/* Barra Superior de Casos Rápidos */
+.quick-cases-bar {
+  padding: 10px 20px;
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--gemini-border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow-x: auto;
+}
+
+.quick-case-label {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chip-btn {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--gemini-border);
+  color: var(--text-secondary);
+  padding: 5px 12px;
+  border-radius: 16px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: var(--transition-fast);
+}
+
+.chip-btn:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+  border-color: var(--gemini-purple);
+}
+
+.chip-btn.active {
+  background: rgba(155, 114, 203, 0.15);
+  border-color: var(--gemini-purple);
+  color: #d1b3ff;
+}
+
+/* Área de Mensagens */
+.messages-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  scroll-behavior: smooth;
+}
+
+.message-bubble {
+  display: flex;
+  gap: 14px;
+  max-width: 90%;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.message-bubble.user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.message-bubble.assistant {
+  align-self: flex-start;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.avatar.gemini {
+  background: var(--gemini-gradient);
+  color: white;
+}
+
+.avatar.user {
+  background: #3c4043;
+  color: var(--text-primary);
+}
+
+.bubble-content {
+  background: var(--bg-surface);
+  border: 1px solid var(--gemini-border);
+  padding: 14px 18px;
+  border-radius: 18px;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--text-primary);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.message-bubble.user .bubble-content {
+  background: #2b3345;
+  border-color: #3f4c6b;
+  border-bottom-right-radius: 4px;
+}
+
+.message-bubble.assistant .bubble-content {
+  border-bottom-left-radius: 4px;
+}
+
+/* Cartões de status e arquivos anexados dentro do chat */
+.attached-files-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.file-chip {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--gemini-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.file-chip .file-icon {
+  color: var(--accent-color);
+}
+
+.file-chip .file-name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-chip .file-size {
+  color: var(--text-tertiary);
+  font-size: 0.72rem;
+}
+
+/* Cartão de Extração da IA */
+.ai-summary-card {
+  margin-top: 14px;
+  background: var(--bg-surface-elevated);
+  border-left: 3px solid var(--gemini-purple);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.ai-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: #d1b3ff;
+}
+
+.ai-summary-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 0.8rem;
+}
+
+.metric-pill {
+  background: var(--bg-surface);
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--gemini-border);
+}
+
+.metric-pill .label {
+  color: var(--text-tertiary);
+  font-size: 0.7rem;
+  display: block;
+}
+
+.metric-pill .value {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-top: 2px;
+}
+
+/* Indicador de Digitação / Extração Pulsante */
+.ai-typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border-radius: 12px;
+  border: 1px solid var(--gemini-border);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  width: fit-content;
+}
+
+.pulse-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.pulse-dots span {
+  width: 6px;
+  height: 6px;
+  background: var(--gemini-purple);
+  border-radius: 50%;
+  animation: pulse 1.4s infinite ease-in-out;
+}
+
+.pulse-dots span:nth-child(2) { animation-delay: 0.2s; }
+.pulse-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes pulse {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1.1); opacity: 1; }
+}
+
+/* =====================================================================
+   DOCK DE ENTRADA DO PROMPT (GEMINI STYLE)
+   ===================================================================== */
+.chat-input-wrapper {
+  padding: 16px 24px 20px;
+  background: linear-gradient(180deg, transparent 0%, var(--bg-primary) 30%);
+}
+
+.chat-input-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--gemini-border);
+  border-radius: 24px;
+  padding: 10px 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.chat-input-box:focus-within {
+  border-color: var(--gemini-purple);
+  box-shadow: 0 0 0 1px var(--gemini-purple), 0 4px 20px var(--gemini-glow);
+}
+
+.staged-files-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.staged-file-pill {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--gemini-border);
+  border-radius: 14px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-primary);
+}
+
+.staged-file-pill .remove-file-btn {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.staged-file-pill .remove-file-btn:hover {
+  color: var(--gemini-pink);
+}
+
+.input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.chat-textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: var(--font-main);
+  font-size: 0.95rem;
+  line-height: 1.4;
+  resize: none;
+  max-height: 120px;
+  min-height: 24px;
+}
+
+.chat-textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+.input-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-upload {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-fast);
+}
+
+.btn-upload:hover {
+  background: var(--bg-surface-hover);
+  color: var(--accent-color);
+}
+
+.btn-send {
+  background: var(--gemini-gradient);
+  border: none;
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-fast);
+  box-shadow: 0 2px 8px var(--gemini-glow);
+}
+
+.btn-send:hover {
+  transform: scale(1.05);
+}
+
+.btn-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.input-footer-hint {
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  text-align: center;
+  margin-top: 8px;
+}
+
+/* =====================================================================
+   PAINEL DIREITO: VISUALIZAÇÃO E EDIÇÃO DO DOCUMENTO A4
+   ===================================================================== */
+.document-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-surface);
+  overflow: hidden;
+}
+
+/* Barra de Ferramentas do Documento */
+.doc-toolbar {
+  height: 52px;
+  background: var(--bg-surface-elevated);
+  border-bottom: 1px solid var(--gemini-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  flex-shrink: 0;
+}
+
+.doc-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.doc-title-badge {
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success-color);
+  box-shadow: 0 0 8px rgba(52, 168, 83, 0.5);
+}
+
+.doc-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-action-doc {
+  background: var(--bg-surface);
+  border: 1px solid var(--gemini-border);
+  color: var(--text-primary);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.btn-action-doc:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--accent-color);
+}
+
+.btn-action-doc.docx-btn {
+  background: #185abd;
+  color: white;
+  border: none;
+}
+
+.btn-action-doc.docx-btn:hover {
+  background: #12448f;
+  box-shadow: 0 2px 8px rgba(24, 90, 189, 0.4);
+}
+
+/* Contêiner de Rolagem da Folha A4 */
+.doc-scroll-viewport {
+  flex: 1;
+  overflow-y: auto;
+  padding: 30px;
+  background: #18191a;
+  display: flex;
+  justify-content: center;
+}
+
+[data-theme="light"] .doc-scroll-viewport {
+  background: #e9ecef;
+}
+
+/* FOLHA A4 OFICIAL */
+.a4-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  background: var(--paper-bg);
+  color: var(--paper-text);
+  font-family: var(--font-doc);
+  padding: 25mm 25mm 25mm 30mm; /* Padrão ABNT / Tribunais */
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  border-radius: 2px;
+  position: relative;
+  font-size: 10pt;
+  line-height: 1.35;
+}
+
+/* Cabeçalho Judicial Oficial */
+.judicial-header {
+  text-align: center;
+  margin-bottom: 20px;
+  border-bottom: 1.5px solid var(--paper-accent);
+  padding-bottom: 12px;
+}
+
+.coat-of-arms {
+  width: 54px;
+  height: 54px;
+  margin: 0 auto 6px;
+  display: block;
+}
+
+.judicial-header h1 {
+  font-size: 11pt;
+  font-weight: bold;
+  color: var(--paper-accent);
+  margin-bottom: 2px;
+  text-transform: uppercase;
+}
+
+.judicial-header h2 {
+  font-size: 10pt;
+  font-weight: bold;
+  color: var(--paper-accent);
+  margin-bottom: 2px;
+}
+
+.judicial-header .anexo-subtitle {
+  font-size: 9pt;
+  font-weight: bold;
+  color: #555;
+  margin-bottom: 6px;
+}
+
+.judicial-header .form-main-title {
+  font-size: 12pt;
+  font-weight: bold;
+  color: var(--paper-accent);
+  text-decoration: underline;
+  margin-top: 8px;
+}
+
+/* Seções do Formulário */
+.form-section-block {
+  margin-bottom: 16px;
+}
+
+.form-section-title {
+  font-size: 10.5pt;
+  font-weight: bold;
+  color: var(--paper-accent);
+  border-bottom: 1px solid #c9d6df;
+  padding-bottom: 3px;
+  margin-bottom: 8px;
+  margin-top: 14px;
+  text-transform: uppercase;
+}
+
+.field-line {
+  margin-bottom: 6px;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.field-label {
+  font-weight: bold;
+  font-size: 9.5pt;
+  color: #000;
+  white-space: nowrap;
+}
+
+/* Inputs Editáveis na Folha A4 */
+.editable-input {
+  border: none;
+  border-bottom: 1px dotted transparent;
+  font-family: inherit;
+  font-size: 9.5pt;
+  color: #1a1a1a;
+  background: transparent;
+  padding: 1px 4px;
+  transition: background var(--transition-fast), border-bottom var(--transition-fast);
+  border-radius: 2px;
+}
+
+.editable-input:hover {
+  background: rgba(66, 133, 244, 0.08);
+  border-bottom: 1px dotted #4285f4;
+}
+
+.editable-input:focus {
+  background: #fff9db;
+  border-bottom: 1.5px solid #003366;
+  outline: none;
+}
+
+.editable-input.wide {
+  flex: 1;
+  min-width: 200px;
+}
+
+.editable-textarea {
+  width: 100%;
+  border: none;
+  border-bottom: 1px dotted transparent;
+  font-family: inherit;
+  font-size: 9.5pt;
+  color: #1a1a1a;
+  background: transparent;
+  padding: 4px;
+  resize: vertical;
+  min-height: 48px;
+}
+
+.editable-textarea:hover {
+  background: rgba(66, 133, 244, 0.08);
+  border-bottom: 1px dotted #4285f4;
+}
+
+.editable-textarea:focus {
+  background: #fff9db;
+  border: 1px solid #003366;
+  outline: none;
+}
+
+/* Checkboxes Judiciais */
+.cb-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 6px;
+}
+
+.cb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9.5pt;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cb-item input[type="checkbox"],
+.cb-item input[type="radio"] {
+  cursor: pointer;
+  accent-color: #003366;
+}
+
+/* Tabelas Oficiais */
+.judicial-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 9pt;
+}
+
+.judicial-table th,
+.judicial-table td {
+  border: 1px solid var(--paper-border);
+  padding: 5px 8px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.judicial-table th {
+  background-color: var(--paper-header-bg);
+  font-weight: bold;
+  color: #000;
+}
+
+.judicial-table td input {
+  width: 100%;
+  border: none;
+  font-size: 9pt;
+  font-family: inherit;
+  background: transparent;
+}
+
+.judicial-table td input:focus {
+  background: #fff9db;
+  outline: none;
+}
+
+.judicial-table tr.total-row {
+  background-color: #f8fafc;
+  font-weight: bold;
+}
+
+.btn-add-row {
+  background: none;
+  border: 1px dashed #999;
+  color: #444;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.btn-add-row:hover {
+  border-color: #003366;
+  color: #003366;
+}
+
+/* Parecer Conclusivo Highlight */
+.conclusion-box {
+  border: 1.5px solid #003366;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin: 10px 0;
+  background: #f7faff;
+}
+
+.conclusion-title {
+  font-weight: bold;
+  color: #003366;
+  font-size: 10pt;
+  margin-bottom: 6px;
+}
+
+/* Bloco de Assinatura */
+.signature-block {
+  margin-top: 40px;
+  text-align: center;
+}
+
+.signature-line {
+  width: 280px;
+  height: 1px;
+  background: #000;
+  margin: 0 auto 6px;
+}
+
+.signature-name {
+  font-weight: bold;
+  font-size: 10pt;
+}
+
+.signature-role {
+  font-size: 8.5pt;
+  color: #555;
+}
+
+/* =====================================================================
+   MODAL DE CONFIGURAÇÕES (GEMINI API KEY)
+   ===================================================================== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-normal);
+}
+
+.modal-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-dialog {
+  background: var(--bg-surface);
+  border: 1px solid var(--gemini-border);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 520px;
+  padding: 24px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.modal-header h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+}
+
+.form-control {
+  width: 100%;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.form-control:focus {
+  border-color: var(--gemini-purple);
+  outline: none;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+/* =====================================================================
+   ESTILOS DE IMPRESSÃO (EXCLUSIVO PARA GERAÇÃO PDF)
+   ===================================================================== */
+@media print {
+  body {
+    background: transparent !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  
+  .app-header,
+  .chat-pane,
+  .doc-toolbar,
+  .quick-cases-bar,
+  .btn-add-row,
+  .modal-overlay {
+    display: none !important;
+  }
+  
+  .main-container {
+    height: auto !important;
+  }
+  
+  .document-pane {
+    overflow: visible !important;
+  }
+  
+  .doc-scroll-viewport {
+    padding: 0 !important;
+    background: transparent !important;
+  }
+  
+  .a4-sheet {
+    box-shadow: none !important;
+    padding: 15mm 20mm !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+}
