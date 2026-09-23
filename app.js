@@ -236,8 +236,8 @@ Com base neles, vou **extrair naturalmente todas as informações** e preencher 
           ${files.map(f => `
             <div class="file-chip">
               <span class="file-icon">📎</span>
-              <span class="file-name" title="${f.name}">${f.name}</span>
-              <span class="file-size">${f.size}</span>
+              <span class="file-name" title="${f.name || f.nome}">${f.name || f.nome}</span>
+              <span class="file-size">${f.size || f.tamanho}</span>
             </div>
           `).join("")}
         </div>
