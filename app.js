@@ -8,9 +8,11 @@ class PericiaApp {
     this.formData = JSON.parse(JSON.stringify(DEFAULT_FORM_DATA));
     this.stagedFiles = [];
     this.chatHistory = [];
+    this.apiKey = localStorage.getItem("gemini_api_key") || "";
     let storedModel = localStorage.getItem("gemini_model");
-    if (!storedModel || storedModel === "gemini-2.5-flash") {
-      storedModel = "gemini-1.5-flash";
+    const VALID_MODELS = ["gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite"];
+    if (!storedModel || !VALID_MODELS.includes(storedModel)) {
+      storedModel = "gemini-3.6-flash";
       localStorage.setItem("gemini_model", storedModel);
     }
     this.selectedModel = storedModel;
@@ -415,13 +417,15 @@ Formato obrigatório das chaves:
         }
       }
 
-      // Lista de modelos suportados para fallback automático caso ocorra 404 (modelo descontinuado ou nome inválido)
+      // Lista de modelos suportados da série Gemini 3.x com fallback automático
       const candidateModels = [
         this.selectedModel,
-        "gemini-1.5-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-pro"
-      ].filter((v, i, a) => v && v !== "gemini-2.5-flash" && a.indexOf(v) === i);
+        "gemini-3.6-flash",
+        "gemini-3.8-flash",
+        "gemini-3.5-flash",
+        "gemini-3.1-flash-lite",
+        "gemini-3.1-pro-preview"
+      ].filter((v, i, a) => v && a.indexOf(v) === i);
 
       let response = null;
       let lastErrorMessage = "";
