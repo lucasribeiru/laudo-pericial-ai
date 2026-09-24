@@ -13,12 +13,11 @@
   <!-- Estilos da Aplicação -->
   <link rel="stylesheet" href="style.css">
   
-  <!-- Bibliotecas Externas via CDN -->
-  <!-- 1. docx.js (Geração nativa de arquivos Microsoft Word .docx no cliente) -->
-  <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
-  <!-- 2. FileSaver.js (Disparo de download seguro) -->
-  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-  <!-- 3. PDF.js (Leitura e extração de texto de PDFs anexados) -->
+  <!-- Bibliotecas Locais (Garantia de Funcionamento 100% Confiável e Offline) -->
+  <script src="lib/docx.umd.js"></script>
+  <script src="lib/FileSaver.min.js"></script>
+  <script src="lib/html2pdf.bundle.min.js"></script>
+  <script src="brasao-base64.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>
     if (window.pdfjsLib) {
@@ -60,7 +59,12 @@
         <span>Configurar IA</span>
       </button>
 
-      <button id="btnDownloadDocxTop" class="btn-header primary" onclick="app.exportToWord()">
+      <button id="btnDownloadPdfTop" class="btn-header" onclick="app.exportToPdf()" title="Baixar diretamente em PDF">
+        <span>📄</span>
+        <span>Baixar PDF</span>
+      </button>
+
+      <button id="btnDownloadDocxTop" class="btn-header primary" onclick="app.exportToWord()" title="Baixar arquivo editável do Word">
         <span>📥</span>
         <span>Baixar Word (.docx)</span>
       </button>
@@ -144,9 +148,13 @@
         </div>
 
         <div class="doc-actions-group">
-          <button class="btn-action-doc" id="btnPrintPdf" title="Salvar diretamente em PDF ou Imprimir">
+          <button class="btn-action-doc" id="btnPrintPdf" title="Imprimir o laudo oficial">
             <span>🖨️</span>
-            <span>Imprimir / PDF</span>
+            <span>Imprimir</span>
+          </button>
+          <button class="btn-action-doc" id="btnDownloadPdf" title="Baixar arquivo PDF oficial">
+            <span>📄</span>
+            <span>Baixar PDF</span>
           </button>
           <button class="btn-action-doc docx-btn" id="btnDownloadDocx" title="Baixar arquivo oficial editável do Microsoft Word">
             <span>📥</span>

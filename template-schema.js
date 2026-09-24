@@ -5,11 +5,12 @@
  */
 
 const DEFAULT_FORM_DATA = {
-  // Identificação do Tribunal e Perícia
+  // Identificação do Tribunal e Perícia Oficial
   cabecalho: {
-    tribunal: "PODER JUDICIÁRIO / JUSTIÇA FEDERAL / SEÇÃO JUDICIÁRIA DO AMAPÁ",
+    tribunal: "PODER JUDICIÁRIO\nJUSTIÇA FEDERAL\nSEÇÃO JUDICIÁRIA DO AMAPÁ\nCOORDENAÇÃO DOS JUIZADOS ESPECIAIS FEDERAIS\nPORTARIA COJEF/NUCOD/AP Nº 01 de 10/02/2015\nANEXO IV - PERITOS ASSISTENTES SOCIAIS",
     anexo: "ANEXO IV - PERITOS ASSISTENTES SOCIAIS",
-    titulo: "FORMULÁRIO DE PERÍCIA SOCIOECONÔMICA (BPC/LOAS)"
+    titulo: "PERÍCIA SOCIOECONÔMICA",
+    rodape: "Rodovia Norte Sul, s/n – Bairro Infraero II, CEP. 68908-911 - Macapá-AP, site: portal.trf1.jus.br/sjap. Fones: 3251-5507"
   },
 
   // 1. Dados Gerais e Identificação
@@ -19,6 +20,7 @@ const DEFAULT_FORM_DATA = {
     representanteLegal: "",
     cpf: "",
     rg: "",
+    codF: "",
     dataNascimento: "",
     sexo: "M", // "M" ou "F"
     objeto: "Benefício de Prestação Continuada - BPC",
@@ -42,7 +44,8 @@ const DEFAULT_FORM_DATA = {
     jaExerceuAtividade: "Sim",
     jaExerceuQual: "",
     teveCtpsAssinada: "Não",
-    teveCtpsDetalhes: ""
+    teveCtpsDetalhes: "",
+    historicoCtps: []
   },
 
   // 3. Situação Familiar e Renda dos Integrantes
@@ -57,9 +60,10 @@ const DEFAULT_FORM_DATA = {
   moradia: {
     tipo: "Casa", // Casa, Apartamento, Abrigo/Asilo, Outro
     tipoOutro: "",
-    construcao: "madeira", // alvenaria, madeira, mista
-    cobertura: "telha de amianto", // telha de amianto, barro, brasilite
+    construcao: "alvenaria", // alvenaria, madeira, mista
+    cobertura: "telha de amianto", // telha de amianto, telha de barro, zinco
     comodos: 3,
+    comodosDescricao: "",
     zona: "urbana", // urbana, rural
     acesso: "difícil", // fácil, difícil
     tempoResidencia: "5 anos",
@@ -72,6 +76,7 @@ const DEFAULT_FORM_DATA = {
     esgoto: "Fossa", // Rede Pública, Fossa, Céu aberto
     energia: "Regular", // Regular, Instável/Gato
     rua: "Terra/Dificuldade de tráfego em chuvas", // Pavimentada, Terra/Dificuldade de tráfego em chuvas
+    piso: "Lajota cerâmica simples / cimento", // Piso identificado nas fotos
 
     // Bens
     bensTextoPadrao: "O conjunto de bens descritos a seguir demonstra itens básicos de sobrevivência, não indicando padrão incompatível com situação de vulnerabilidade econômica. Nenhum bem de alto valor comercial foi encontrado.",
