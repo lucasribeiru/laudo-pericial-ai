@@ -6,7 +6,7 @@
 
 class PericiaApp {
   constructor() {
-    this.formData = JSON.parse(JSON.stringify(DEFAULT_FORM_DATA));
+    this.formData = JSON.parse(JSON.stringify(typeof SAMPLE_CASES !== "undefined" && SAMPLE_CASES.mazagao ? SAMPLE_CASES.mazagao.dados : DEFAULT_FORM_DATA));
     this.stagedFiles = [];
     this.chatHistory = [];
     this.apiKey = localStorage.getItem("gemini_api_key") || "";
@@ -95,11 +95,13 @@ class PericiaApp {
       });
     }
 
-    // Casos rápidos de demonstração
+    // Casos e botões da barra superior
     this.quickChips.forEach(chip => {
       chip.addEventListener("click", () => {
         const caseKey = chip.getAttribute("data-case");
         if (caseKey && SAMPLE_CASES[caseKey]) {
+          this.quickChips.forEach(c => c.classList.remove("active"));
+          chip.classList.add("active");
           this.loadSampleCase(caseKey);
         }
       });
@@ -543,12 +545,6 @@ Verifique sua chave de API nas configurações ou utilize a extração inteligen
     await new Promise(r => setTimeout(r, 1200));
 
     let caseToUse = SAMPLE_CASES.mazagao;
-    const lower = (userText + " " + files.map(f => f.name).join(" ")).toLowerCase();
-
-    if (lower.includes("lucas") || lower.includes("brasil novo")) {
-      caseToUse = SAMPLE_CASES.lucas;
-    }
-
     this.formData = JSON.parse(JSON.stringify(caseToUse.dados));
 
     const hoje = new Date().toLocaleDateString("pt-BR");
@@ -614,6 +610,15 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
         this.formData
       );
     }, 600);
+  }
+
+  resetToBlankForm() {
+    this.formData = JSON.parse(JSON.stringify(DEFAULT_FORM_DATA));
+    this.renderFormPreview();
+    document.querySelectorAll(".chip-btn").forEach(c => c.classList.remove("active"));
+    const btn = document.getElementById("btnNovoLaudo");
+    if (btn) btn.classList.add("active");
+    this.addAssistantMessage("📋 Formulário em branco do **Anexo IV da Justiça Federal** carregado com sucesso. Você pode preencher os dados diretamente na folha ao lado ou enviar os documentos e fotos para preenchimento por IA.");
   }
 
   cb(checked, label) {

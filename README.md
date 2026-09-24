@@ -44,7 +44,7 @@ Sistema web especializado com interface inspirada no **Google Gemini**, desenvol
 5. **Configuração da Chave Gemini API:**
    - Clique em **"Configurar IA"** no topo da tela para inserir sua chave gratuita do [Google AI Studio](https://aistudio.google.com/).
    - Permite escolher entre os modelos `gemini-1.5-flash` (padrão estável), `gemini-2.0-flash` ou `gemini-1.5-pro`.
-   - Caso não insira uma chave, o sistema opera no modo integrado com casos reais pré-carregados (Lucas de Sousa Ribeiro / Mazagão).
+   - Caso não insira uma chave, o sistema opera no modo integrado com o modelo oficial preenchido (E.L.P.S / Mazagão - AP).
 
 ---
 
@@ -57,7 +57,7 @@ laudo-pericial-ai/
 ├── app.js                # Lógica do chat, upload multimodal e renderização interativa
 ├── docx-generator.js     # Compilador nativo de Microsoft Word (.docx)
 ├── template-schema.js    # Esquema de dados judicial e fórmula de cálculo LOAS
-├── sample-data.js        # Casos reais de demonstração (Lucas / Emilly Mazagão)
+├── sample-data.js        # Caso oficial de referência (E.L.P.S / Emilly - Mazagão/AP)
 ├── run_app.bat           # Executável de inicialização rápida no Windows
 └── README.md             # Esta documentação
 ```
