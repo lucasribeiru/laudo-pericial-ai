@@ -1037,10 +1037,10 @@ Ele está estruturado exatamente com o cabeçalho oficial, tabelas de membros da
   // TEMAS E MODAL DE CONFIGURAÇÃO
   // =====================================================================
   toggleTheme() {
-    const currentTheme = document.documentElement.getAttribute("data-theme") || "dark";
-    const nextTheme = currentTheme === "dark" ? "light" : "dark";
+    const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
+    const nextTheme = currentTheme === "light" ? "dark" : "light";
     document.documentElement.setAttribute("data-theme", nextTheme);
-    this.btnThemeToggle.innerHTML = nextTheme === "dark" ? "☀️" : "🌙";
+    this.btnThemeToggle.innerHTML = nextTheme === "light" ? "🌙" : "☀️";
   }
 
   openSettingsModal() {
