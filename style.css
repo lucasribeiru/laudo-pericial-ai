@@ -105,30 +105,43 @@ body {
   gap: 12px;
 }
 
-.brand-sparkle {
-  width: 32px;
-  height: 32px;
-  background: var(--gemini-gradient);
-  border-radius: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 8px var(--gemini-glow);
-}
-
-.brand-sparkle svg {
-  width: 18px;
-  height: 18px;
-  fill: white;
+.brand-logo-img {
+  height: 38px;
+  width: auto;
+  border-radius: 6px;
+  object-fit: contain;
+  display: block;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
 }
 
 .brand-title {
-  font-size: 1.15rem;
-  font-weight: 600;
+  font-size: 1.18rem;
+  font-weight: 700;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   color: var(--text-primary);
+  letter-spacing: -0.3px;
+}
+
+.brand-name-visum {
+  color: #0b3a60;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+}
+
+.brand-name-social {
+  color: #24c0eb;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+}
+
+[data-theme="dark"] .brand-name-visum {
+  color: #5cceee;
+}
+
+[data-theme="dark"] .brand-name-social {
+  color: #e1f7fc;
 }
 
 .brand-title span.badge-pro {
@@ -734,205 +747,281 @@ body {
   transform: translateY(-1px);
 }
 
-/* CONTÊINER DE ROLAGEM DA FOLHA A4 */
+/* CONTÊINER DE ROLAGEM MULTI-PÁGINAS */
 .doc-scroll-viewport {
   flex: 1;
   overflow-y: auto;
-  padding: 30px 15px 60px;
+  padding: 30px 15px 80px;
   background: var(--bg-viewport);
-  display: block; /* Garante que o fundo não corte */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
 }
 
-/* FOLHA A4 OFICIAL CONTÍNUA (FUNDO 100% BRANCO IMACULADO) */
-.a4-sheet {
+.pages-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  width: 100%;
+}
+
+/* CADA PÁGINA A4 OFICIAL */
+.official-page {
   width: 210mm;
+  height: 297mm;
   min-height: 297mm;
-  height: auto; /* Expande naturalmente com todo o conteúdo das 8 seções */
+  max-height: 297mm;
+  box-sizing: border-box;
+  padding: 14mm 20mm 14mm 22mm;
   background: #FFFFFF !important;
-  color: #1A1A1A !important;
-  font-family: var(--font-doc);
-  padding: 25mm 25mm 25mm 30mm; /* Padrão ABNT / Tribunais */
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
-  border-radius: 3px;
-  margin: 0 auto;
+  color: #000000 !important;
+  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-size: 9.6pt;
+  line-height: 1.34;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.05);
+  border-radius: 2px;
   position: relative;
-  font-size: 10pt;
-  line-height: 1.35;
+  page-break-after: always;
+  page-break-inside: avoid;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.official-page * {
+  color: #000000;
   box-sizing: border-box;
 }
 
-/* Legibilidade garantida dentro da folha A4 */
-.a4-sheet * {
-  color: #1A1A1A;
+.page-content-body {
+  flex: 1;
+  overflow: hidden;
 }
 
-/* Cabeçalho Judicial Oficial */
-.judicial-header {
+/* CABEÇALHO OFICIAL EM TODAS AS PÁGINAS */
+.page-header-official {
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
+  page-break-inside: avoid;
+  flex-shrink: 0;
 }
 
 .official-header-img {
-  width: 490px;
+  width: 480px;
   max-width: 100%;
   height: auto;
   display: block;
-  margin: 0 auto 6px;
+  margin: 0 auto 3px;
 }
 
+/* TÍTULO PRINCIPAL (PÁG 1) */
 .judicial-form-title {
-  font-size: 11.5pt;
+  font-size: 11pt;
   font-weight: bold;
   text-align: center;
   border-top: 1.5px solid #000000;
   border-bottom: 1.5px solid #000000;
-  padding: 4px 0;
-  margin: 8px 0 14px;
+  padding: 3px 0;
+  margin: 4px 0 8px;
   text-transform: uppercase;
   color: #000000 !important;
   letter-spacing: 0.5px;
 }
 
-/* Tabela em Caixa Fechada Oficial (Identificação Judicial) */
+/* TÍTULO DE SEÇÃO (PÁG 2, 3, 4, 5, 6) */
+.judicial-section-title {
+  font-size: 10.5pt;
+  font-weight: bold;
+  text-align: center;
+  margin: 6px 0 8px;
+  text-transform: uppercase;
+  color: #000000 !important;
+  letter-spacing: 0.4px;
+}
+
+/* TABELA EM CAIXA FECHADA OFICIAL (IDENTIFICAÇÃO) */
 .judicial-box-table {
   width: 100%;
   border-collapse: collapse;
-  border: 1.5px solid #000000;
-  margin-bottom: 16px;
+  border: 1.2px solid #000000;
+  margin-bottom: 10px;
   background-color: #FFFFFF;
+  font-size: 9.2pt;
 }
 
 .judicial-box-table td {
   border: 1px solid #000000;
-  padding: 5px 8px;
-  font-size: 9.5pt;
-  vertical-align: top;
+  padding: 3px 6px;
+  vertical-align: middle;
   color: #000000 !important;
   background-color: #FFFFFF;
 }
 
-.editable-input-table {
-  border: none;
-  border-bottom: 1px dotted #9E9E9E;
-  font-family: inherit;
-  font-size: 9.5pt;
+/* TABELAS JUDICIAIS COM BORDAS PRETAS (CTPS, FAMÍLIA) */
+.judicial-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #000000;
+  margin: 5px 0;
+  font-size: 9pt;
+  background-color: #FFFFFF !important;
+}
+
+.judicial-table th, .judicial-table td {
+  border: 1px solid #000000;
+  padding: 3px 5px;
   color: #000000 !important;
-  background: transparent;
-  padding: 1px 4px;
+  vertical-align: middle;
 }
 
-.editable-input-table:focus {
-  background: #FFF9DB;
-  border-bottom: 1.5px solid #003366;
-  outline: none;
-}
-
-/* Rodapé Oficial da Seção Judiciária do Amapá */
-.official-page-footer {
-  border-top: 1px solid #777777;
-  padding-top: 6px;
-  margin-top: 25px;
-  font-size: 8pt;
-  color: #444444 !important;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.official-page-footer * {
-  color: #444444 !important;
-  font-size: 8pt;
-}
-
-/* Seções do Formulário */
-.form-section-block {
-  margin-bottom: 16px;
-}
-
-.form-section-title {
-  font-size: 10.5pt;
+.judicial-table th {
   font-weight: bold;
-  color: var(--paper-accent) !important;
-  border-bottom: 1px solid #C9D6DF;
-  padding-bottom: 3px;
-  margin-bottom: 8px;
-  margin-top: 14px;
-  text-transform: uppercase;
+  text-align: center;
+  background: #fbfbfb;
 }
 
-.field-line {
+/* PARÁGRAFOS E PERGUNTAS JUDICIAIS - 100% JUSTIFICADOS */
+.official-page p,
+.official-page .judicial-paragraph,
+.official-page .field-answer,
+.official-page .editable-field-block,
+.official-page ul,
+.official-page li {
+  text-align: justify !important;
+  text-justify: inter-word !important;
+  text-align-last: left;
+  line-height: 1.36;
+}
+
+.judicial-paragraph {
+  text-align: justify !important;
+  text-justify: inter-word !important;
+  text-align-last: left;
+  line-height: 1.36;
   margin-bottom: 6px;
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.field-label {
-  font-weight: bold;
-  font-size: 9.5pt;
   color: #000000 !important;
-  white-space: nowrap;
 }
 
-/* Inputs Editáveis na Folha A4 */
-.editable-input {
-  border: none;
-  border-bottom: 1px dotted #B0BEC5;
-  font-family: inherit;
-  font-size: 9.5pt;
-  color: #1A1A1A !important;
+.field-question {
+  font-weight: bold;
+  font-size: 9.6pt;
+  margin-top: 8px;
+  margin-bottom: 2px;
+  color: #000000 !important;
+}
+
+.field-answer {
+  text-align: justify !important;
+  text-justify: inter-word !important;
+  text-align-last: left;
+  line-height: 1.36;
+  margin-bottom: 6px;
+  color: #000000 !important;
+}
+
+/* CAMPOS EDITÁVEIS SEM BORDAS FEIAS DE FORMULÁRIO */
+.editable-field {
+  outline: none;
   background: transparent;
-  padding: 1px 4px;
-  transition: background var(--transition-fast), border-bottom var(--transition-fast);
+  color: #000000 !important;
+  transition: background 0.15s;
+  display: inline;
+}
+
+.editable-field:hover {
+  background: rgba(36, 192, 235, 0.08);
+}
+
+.editable-field:focus {
+  background: rgba(36, 192, 235, 0.16);
   border-radius: 2px;
 }
 
-.editable-input:hover {
+.editable-field-block {
+  outline: none;
+  background: transparent;
+  color: #000000 !important;
+  transition: background 0.15s;
+  display: block;
+  text-align: justify !important;
+  text-justify: inter-word !important;
+  text-align-last: left;
+  line-height: 1.36;
+  padding: 1px 2px;
+}
+
+.editable-field-block:hover {
   background: rgba(36, 192, 235, 0.08);
-  border-bottom: 1px dotted var(--color-cyan-primary);
 }
 
-.editable-input:focus {
-  background: #FFF9DB;
-  border-bottom: 1.5px solid var(--paper-accent);
-  outline: none;
+.editable-field-block:focus {
+  background: rgba(36, 192, 235, 0.16);
+  border-radius: 2px;
 }
 
-.editable-input.wide {
-  flex: 1;
-  min-width: 200px;
-}
-
-.editable-textarea {
-  width: 100%;
-  border: 1px solid var(--gemini-border);
-  border-radius: 4px;
-  font-family: inherit;
-  font-size: 9.5pt;
-  color: #1A1A1A !important;
-  background: #FFFFFF !important;
-  padding: 6px;
-  resize: vertical;
-  min-height: 48px;
-}
-
-.editable-textarea:hover {
-  border-color: var(--color-cyan-primary);
-}
-
-.editable-textarea:focus {
-  background: #FFF9DB !important;
-  border-color: var(--paper-accent);
-  outline: none;
-}
-
-/* Checkboxes Judiciais */
-.cb-group {
-  display: inline-flex;
+/* RODAPÉ OFICIAL DA JUSTIÇA FEDERAL DO AMAPÁ */
+.page-footer-official {
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px solid #444444;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  margin-left: 6px;
+  font-size: 7.5pt;
+  color: #222222 !important;
+  page-break-inside: avoid;
+}
+
+.page-footer-text {
+  flex: 1;
+  color: #222222 !important;
+}
+
+.page-footer-num {
+  font-weight: bold;
+  font-size: 8.5pt;
+  margin-left: 10px;
+  color: #222222 !important;
+}
+
+/* RUBRICA / ASSINATURA DA PERITA */
+.perita-rubrica-box {
+  text-align: right;
+  margin: 10px 0 4px;
+  page-break-inside: avoid;
+}
+
+.perita-rubrica-line {
+  display: inline-block;
+  text-align: center;
+  font-size: 7.5pt;
+  color: #333333;
+  line-height: 1.15;
+}
+
+.perita-full-signature {
+  text-align: center;
+  margin: 22px auto 8px;
+  page-break-inside: avoid;
+}
+
+.perita-full-signature .sig-line {
+  width: 280px;
+  height: 1px;
+  background: #000000;
+  margin: 0 auto 5px;
+}
+
+.perita-full-signature .sig-name {
+  font-weight: bold;
+  font-size: 10pt;
+}
+
+.perita-full-signature .sig-role {
+  font-size: 8.5pt;
+  color: #333333;
 }
 
 .cb-item {
