@@ -139,13 +139,28 @@
       <!-- Toolbar do Documento -->
       <div class="doc-toolbar">
         <div class="doc-info">
-          <div class="status-indicator" title="Em sincronia"></div>
-          <div class="doc-title-badge">
-            <span>Visum Social • Anexo IV Oficial (Justiça Federal / AP)</span>
+          <div class="status-indicator synced" id="docSyncIndicator" title="Em sincronia"></div>
+          <span class="doc-sync-text" id="docSyncText">Em sincronia</span>
+
+          <div class="doc-page-nav" id="docPageNav" title="Navegação rápida entre páginas">
+            <button type="button" class="btn-page-chip active" onclick="app.scrollToPage(1)" data-page="1">Pág 1</button>
+            <button type="button" class="btn-page-chip" onclick="app.scrollToPage(2)" data-page="2">Pág 2</button>
+            <button type="button" class="btn-page-chip" onclick="app.scrollToPage(3)" data-page="3">Pág 3</button>
+            <button type="button" class="btn-page-chip" onclick="app.scrollToPage(4)" data-page="4">Pág 4</button>
+            <button type="button" class="btn-page-chip" onclick="app.scrollToPage(5)" data-page="5">Pág 5</button>
+            <button type="button" class="btn-page-chip" onclick="app.scrollToPage(6)" data-page="6">Pág 6</button>
           </div>
         </div>
 
         <div class="doc-actions-group">
+          <!-- Controles de Zoom -->
+          <div class="doc-zoom-controls">
+            <button type="button" class="btn-zoom" id="btnZoomOut" onclick="app.zoomOut()" title="Diminuir Zoom (-)">−</button>
+            <span class="zoom-level-text" id="zoomLevelText" onclick="app.resetZoom()" title="Clique para redefinir para 100%">100%</span>
+            <button type="button" class="btn-zoom" id="btnZoomIn" onclick="app.zoomIn()" title="Aumentar Zoom (+)">+</button>
+            <button type="button" class="btn-zoom fit-btn" id="btnZoomFit" onclick="app.fitToWidth()" title="Ajustar à largura da tela">⛶ Ajustar</button>
+          </div>
+
           <button class="btn-action-doc" id="btnPrintPdf" title="Imprimir o laudo oficial">
             <span>🖨️</span>
             <span>Imprimir</span>
@@ -162,7 +177,7 @@
       </div>
 
       <!-- Viewport com Folha A4 Oficial -->
-      <div class="doc-scroll-viewport">
+      <div class="doc-scroll-viewport" id="docScrollViewport">
         <div class="a4-sheet" id="a4Content">
           <!-- O formulário A4 oficial será renderizado dinamicamente via JavaScript -->
         </div>

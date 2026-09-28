@@ -232,12 +232,12 @@ class PericiaDocxGenerator {
             <td colspan="3"><span class="field-label">OBJETO:</span> ${id.objeto || "Benefício de Prestação Continuada- BPC"}</td>
           </tr>
           <tr>
-            <td width="40%"><span class="field-label">Profissão Anterior:</span> ${id.profissaoAnterior || "Estudante"}<br><span class="field-label">Profissão Atual:</span> ${id.profissaoAtual || "Estudante"}</td>
-            <td width="30%"><span class="field-label">Estado Civil:</span><br>${id.estadoCivil || "Solteiro"}</td>
-            <td width="30%"><span class="field-label">Naturalidade:</span><br>${id.naturalidade || "Macapá/AP"}</td>
+            <td width="40%"><span class="field-label">Profissão Anterior:</span> ${id.profissaoAnterior || ""}<br><span class="field-label">Profissão Atual:</span> ${id.profissaoAtual || ""}</td>
+            <td width="30%"><span class="field-label">Estado Civil:</span><br>${id.estadoCivil || ""}</td>
+            <td width="30%"><span class="field-label">Naturalidade:</span><br>${id.naturalidade || ""}</td>
           </tr>
           <tr>
-            <td colspan="3"><span class="field-label">Escolaridade:</span> ${id.escolaridade || "3 ano fundamental"}</td>
+            <td colspan="3"><span class="field-label">Escolaridade:</span> ${id.escolaridade || ""}</td>
           </tr>
           <tr>
             <td colspan="2"><span class="field-label">Endereço da parte (igual ao local da perícia):</span> ${id.endereco || "___________________"}</td>
@@ -540,9 +540,9 @@ class PericiaDocxGenerator {
               new Paragraph({
                 children: [
                   new TextRun({ text: "Profissão Anterior: ", bold: true, size: 19, font: FONT_FAMILY }),
-                  new TextRun({ text: id.profissaoAnterior || "Estudante", size: 19, font: FONT_FAMILY }),
+                  new TextRun({ text: id.profissaoAnterior || "", size: 19, font: FONT_FAMILY }),
                   new TextRun({ text: "\nProfissão Atual: ", bold: true, size: 19, font: FONT_FAMILY }),
-                  new TextRun({ text: id.profissaoAtual || "Estudante", size: 19, font: FONT_FAMILY })
+                  new TextRun({ text: id.profissaoAtual || "", size: 19, font: FONT_FAMILY })
                 ]
               })
             ], 40),
@@ -550,7 +550,7 @@ class PericiaDocxGenerator {
               new Paragraph({
                 children: [
                   new TextRun({ text: "Estado Civil:\n", bold: true, size: 19, font: FONT_FAMILY }),
-                  new TextRun({ text: id.estadoCivil || "Solteiro", size: 19, font: FONT_FAMILY })
+                  new TextRun({ text: id.estadoCivil || "", size: 19, font: FONT_FAMILY })
                 ]
               })
             ], 30),
@@ -558,7 +558,7 @@ class PericiaDocxGenerator {
               new Paragraph({
                 children: [
                   new TextRun({ text: "Naturalidade:\n", bold: true, size: 19, font: FONT_FAMILY }),
-                  new TextRun({ text: id.naturalidade || "Macapá/AP", size: 19, font: FONT_FAMILY })
+                  new TextRun({ text: id.naturalidade || "", size: 19, font: FONT_FAMILY })
                 ]
               })
             ], 30)
@@ -570,7 +570,7 @@ class PericiaDocxGenerator {
               new Paragraph({
                 children: [
                   new TextRun({ text: "Escolaridade: ", bold: true, size: 19, font: FONT_FAMILY }),
-                  new TextRun({ text: id.escolaridade || "3 ano fundamental", size: 19, font: FONT_FAMILY })
+                  new TextRun({ text: id.escolaridade || "", size: 19, font: FONT_FAMILY })
                 ]
               })
             ], 100, 3)
@@ -590,7 +590,7 @@ class PericiaDocxGenerator {
               new Paragraph({
                 children: [
                   new TextRun({ text: "Telefone:\n", bold: true, size: 19, font: FONT_FAMILY }),
-                  new TextRun({ text: id.telefone || "(96) 99151-6520", size: 19, font: FONT_FAMILY })
+                  new TextRun({ text: id.telefone || "", size: 19, font: FONT_FAMILY })
                 ]
               })
             ], 30)
@@ -758,7 +758,7 @@ class PericiaDocxGenerator {
         children: [
           new TextRun({ text: "Reside em quê? Abrigos, asilos ou similares, casa, apartamento etc.\n", bold: true, size: 20, font: FONT_FAMILY }),
           new TextRun({
-            text: `Reside em casa com construção em ${m.construcao || "alvenaria"}, coberto com ${m.cobertura || "telha de amianto"} e possui ${m.comodos || 5} cômodos ${m.comodosDescricao ? `(${m.comodosDescricao})` : ""}. A residência encontra-se em área ${m.zona || "rural"} do município, de acesso ${m.acesso || "difícil"}. Infraestrutura comunitária: ${m.agua || "Ausência de abastecimento público de água tratada"}, ${m.esgoto || "fossa séptica"}, ${m.energia || "energia regular"}, ${m.rua || "rua de terra com trechos degradados"}. Piso: ${m.piso || "lajota simples com acabamento rústico"}.`,
+            text: `Reside em ${m.tipo || "imóvel"}${m.construcao ? " com construção em " + m.construcao : ""}${m.cobertura ? ", coberto com " + m.cobertura : ""}${m.comodos ? " e possui " + m.comodos + " cômodos" : ""}${m.comodosDescricao ? " (" + m.comodosDescricao + ")" : ""}.${m.zona ? " A residência encontra-se em área " + m.zona + "." : ""}${m.acesso ? " Acesso " + m.acesso + "." : ""} Infraestrutura comunitária: água (${m.agua || "regular"}), esgoto (${m.esgoto || "fossa/rede"}), energia elétrica (${m.energia || "regular"}), via pública (${m.rua || "pavimentada/terra"}), piso (${m.piso || "cerâmica/cimento"}).`,
             size: 20,
             font: FONT_FAMILY
           })
@@ -768,28 +768,28 @@ class PericiaDocxGenerator {
         spacing: { before: 60, after: 40 },
         children: [
           new TextRun({ text: "Há quanto tempo reside no local?\n", bold: true, size: 20, font: FONT_FAMILY }),
-          new TextRun({ text: m.tempoResidencia || "10 anos", size: 20, font: FONT_FAMILY })
+          new TextRun({ text: m.tempoResidencia ? (m.tempoResidencia.includes("ano") || m.tempoResidencia.includes("mês") ? (m.tempoResidencia.startsWith("Reside") ? m.tempoResidencia : "Reside neste imóvel há " + m.tempoResidencia + ".") : m.tempoResidencia) : "", size: 20, font: FONT_FAMILY })
         ]
       }),
       new Paragraph({
         spacing: { before: 60, after: 40 },
         children: [
           new TextRun({ text: "Imóvel próprio, alugado ou de terceiro?\n", bold: true, size: 20, font: FONT_FAMILY }),
-          new TextRun({ text: m.proprietarioImovel ? "É de " + m.proprietarioImovel : "Cedido", size: 20, font: FONT_FAMILY })
+          new TextRun({ text: m.proprietarioImovel ? (m.proprietarioImovel.startsWith("É") || m.proprietarioImovel.startsWith("Imóvel") ? m.proprietarioImovel : "Imóvel " + (m.regimeImovel || "") + (m.proprietarioImovel ? " - " + m.proprietarioImovel : "")) : (m.regimeImovel ? "Imóvel " + m.regimeImovel : ""), size: 20, font: FONT_FAMILY })
         ]
       }),
       new Paragraph({
         spacing: { before: 60, after: 40 },
         children: [
           new TextRun({ text: "Trata-se residência habitual ou temporária (de passagem)?\n", bold: true, size: 20, font: FONT_FAMILY }),
-          new TextRun({ text: m.caraterResidencia || "Residência habitual.", size: 20, font: FONT_FAMILY })
+          new TextRun({ text: m.caraterResidencia ? (m.caraterResidencia.startsWith("Residência") ? m.caraterResidencia : "Residência " + m.caraterResidencia.toLowerCase() + ".") : "", size: 20, font: FONT_FAMILY })
         ]
       }),
       new Paragraph({
         spacing: { before: 60, after: 40 },
         children: [
           new TextRun({ text: "Especificar que bens guarnecem a residência.\n", bold: true, size: 20, font: FONT_FAMILY }),
-          new TextRun({ text: `${m.bensTextoPadrao || "O conjunto de bens descritos demonstra itens básicos de sobrevivência, não indicando padrão incompatível com situação de vulnerabilidade."}\n\nNo imóvel continha os seguintes bens: ${m.bensListagem || "Bens essenciais."}`, size: 20, font: FONT_FAMILY })
+          new TextRun({ text: `${m.bensTextoPadrao || (m.bensListagem ? "O conjunto de bens descritos demonstra itens básicos de sobrevivência, não indicando padrão incompatível com situação de vulnerabilidade." : "")}\n\n${m.bensListagem ? "No imóvel continha os seguintes bens: " + m.bensListagem : ""}`, size: 20, font: FONT_FAMILY })
         ]
       })
     ];
@@ -801,17 +801,17 @@ class PericiaDocxGenerator {
         spacing: { before: 60, after: 40 },
         children: [
           new TextRun({ text: "Quais os gastos com moradia, água, luz etc.?\n", bold: true, size: 20, font: FONT_FAMILY }),
-          new TextRun({ text: `Habitação: ${desp.habitacaoObs || "Reside em imóvel cedido, sem custos diretos de aluguel."}\n`, size: 20, font: FONT_FAMILY }),
-          new TextRun({ text: `Energia elétrica: ${desp.energiaObs || `Valor de ${this.formatMoney(desp.energia)}.`}\n`, size: 20, font: FONT_FAMILY }),
-          new TextRun({ text: `Alimentação: ${desp.alimentacaoObs || `Gasto mensal de ${this.formatMoney(desp.alimentacao)}.`}\n`, size: 20, font: FONT_FAMILY }),
-          new TextRun({ text: `Transporte: ${desp.transporteObs || "Deslocamentos para consultas médicas e tratamento especializado."}`, size: 20, font: FONT_FAMILY })
+          new TextRun({ text: `Habitação: ${desp.habitacaoObs || (desp.habitacao ? this.formatMoney(desp.habitacao) : "")}\n`, size: 20, font: FONT_FAMILY }),
+          new TextRun({ text: `Energia elétrica: ${desp.energiaObs || (desp.energia ? this.formatMoney(desp.energia) : "")}\n`, size: 20, font: FONT_FAMILY }),
+          new TextRun({ text: `Alimentação: ${desp.alimentacaoObs || (desp.alimentacao ? this.formatMoney(desp.alimentacao) : "")}\n`, size: 20, font: FONT_FAMILY }),
+          new TextRun({ text: `Transporte: ${desp.transporteObs || (desp.transporte ? this.formatMoney(desp.transporte) : "")}`, size: 20, font: FONT_FAMILY })
         ]
       }),
       new Paragraph({
         spacing: { before: 80, after: 40 },
         children: [
           new TextRun({ text: "Quais os gastos com saúde (tudo incluído)\n", bold: true, size: 20, font: FONT_FAMILY }),
-          new TextRun({ text: desp.saudeObs || "Tratamento contínuo pelo SUS. A distância e a falta de recursos geram impedimento ao desenvolvimento adequado, caracterizando risco social e a necessidade do amparo assistencial.", size: 20, font: FONT_FAMILY })
+          new TextRun({ text: desp.saudeObs || "", size: 20, font: FONT_FAMILY })
         ]
       })
     ];
@@ -822,14 +822,14 @@ class PericiaDocxGenerator {
       new Paragraph({
         spacing: { before: 60, after: 80 },
         children: [
-          new TextRun({ text: c.textoParecerComplementar || "Conclui-se que o requerente atende integralmente aos requisitos do BPC.", size: 20, font: FONT_FAMILY })
+          new TextRun({ text: c.textoParecerComplementar || c.textoEstudoSocial || "Conclui-se que o requerente encontra-se em situação de vulnerabilidade econômica severa, atendendo aos requisitos da legislação assistencial em vigor.", size: 20, font: FONT_FAMILY })
         ]
       }),
       new Paragraph({
         spacing: { before: 80, after: 40 },
         children: [
           new TextRun({ text: "Fundamentadamente, se for o caso, classifique a perícia de 1 a 3 de acordo com o grau crescente de complexidade, risco, distância e dificuldade de acesso ao local da perícia:\n", bold: true, size: 20, font: FONT_FAMILY }),
-          new TextRun({ text: `RESPOSTA: ${cl.justificativa || "Grau 3 justificado pela distância e condições de acesso."}`, size: 20, font: FONT_FAMILY })
+          new TextRun({ text: `RESPOSTA: ${cl.justificativa || ""}`, size: 20, font: FONT_FAMILY })
         ]
       }),
       new Paragraph({
@@ -846,7 +846,7 @@ class PericiaDocxGenerator {
         spacing: { before: 80, after: 40 },
         children: [
           new TextRun({ text: "Pericial Social\n", bold: true, size: 20, font: FONT_FAMILY }),
-          new TextRun({ text: `Local: ${enc.municipio || "Macapá"}/${enc.uf || "AP"}\nData da perícia in loco: ${enc.dataPericia || "05 de setembro de 2026"}\nHora da perícia in loco: ${enc.horaPericia || "08:00 h"}`, size: 20, font: FONT_FAMILY })
+          new TextRun({ text: `Local: ${enc.municipio ? (enc.municipio.toLowerCase().includes("município") ? enc.municipio : "município de " + enc.municipio + (enc.uf ? "/" + enc.uf : "")) : ""}\nData da perícia in loco: ${enc.dataPericia || ""}\nHora da perícia in loco: ${enc.horaPericia || ""}`, size: 20, font: FONT_FAMILY })
         ]
       }),
       new Paragraph({

@@ -18,9 +18,12 @@ class PericiaApp {
     }
     this.selectedModel = storedModel;
     this.isProcessing = false;
+    this.currentZoom = 1.0;
+    this._saveTimeout = null;
 
     this.initElements();
     this.initEventListeners();
+    this.initScrollSpy();
     this.renderFormPreview();
     this.appendInitialGreeting();
   }
@@ -38,6 +41,11 @@ class PericiaApp {
     this.chatPane = document.getElementById("chatPane");
     this.documentPane = document.getElementById("documentPane");
     this.a4Content = document.getElementById("a4Content");
+    this.docScrollViewport = document.getElementById("docScrollViewport");
+    this.docSyncIndicator = document.getElementById("docSyncIndicator");
+    this.docSyncText = document.getElementById("docSyncText");
+    this.zoomLevelText = document.getElementById("zoomLevelText");
+    this.docPageNav = document.getElementById("docPageNav");
 
     // Botões de Exportação
     this.btnDownloadDocx = document.getElementById("btnDownloadDocx");
@@ -381,6 +389,18 @@ Com base neles, o **Visum Social** realiza a **inspeção visual minuciosa das i
     }
   }
 
+  deepMerge(target, source) {
+    if (!source || typeof source !== "object") return target;
+    for (const key of Object.keys(source)) {
+      if (source[key] instanceof Object && !Array.isArray(source[key]) && target[key] instanceof Object && !Array.isArray(target[key])) {
+        this.deepMerge(target[key], source[key]);
+      } else {
+        target[key] = source[key];
+      }
+    }
+    return target;
+  }
+
   async processWithGeminiAPI(userText, files) {
     this.showTypingIndicator("Conectando ao Gemini API (Análise Visual e Extração de Documentos)...");
 
@@ -389,6 +409,10 @@ Com base neles, o **Visum Social** realiza a **inspeção visual minuciosa das i
 
       const systemPrompt = `Você é um Assistente Pericial Oficial especializado em Perícias Socioeconômicas da Justiça Federal (BPC/LOAS - Lei 8.742/93).
 Analise com rigor técnico todos os documentos, certidões, laudos médicos, extratos de CadÚnico e PRINCIPALMENTE AS FOTOS DA MORADIA/VISITA DOMICILIAR.
+
+REGRA ABSOLUTA DE ISOLAMENTO DE DADOS:
+NUNCA misture, reaproveite ou invente dados de casos de teste, modelos anteriores ou de pessoas fictícias.
+Se uma informação (como telefone, RG, codF, bens, despesas específicas, etc.) não for expressamente encontrada nos documentos e fotos fornecidos pelo perito, retorne string vazia ("") ou 0 para números. Não assuma nem complete com dados de outros casos.
 
 INSTRUÇÃO OBRIGATÓRIA DE ANÁLISE VISUAL DE IMAGENS:
 Para cada foto do imóvel anexada (fachada, rua, cômodos, sala, cozinha, quartos, banheiro, piso):
@@ -409,9 +433,9 @@ Formato obrigatório das chaves:
   "carteiraAssinadaFamilia": "...", "carteiraAssinadaQtd": 0, "rendaTotalFamilia": 0, "rendaPerCapita": 0, "rendaObservacao": "...",
   "moradia": { "tipo": "Casa"|"Apartamento"|"Outro", "construcao": "alvenaria"|"madeira"|"mista", "cobertura": "telha de amianto"|"telha de barro", "comodos": 5, "comodosDescricao": "...", "zona": "urbana"|"rural", "acesso": "fácil"|"difícil", "tempoResidencia": "...", "regimeImovel": "Próprio"|"Alugado"|"Cedido", "proprietarioImovel": "...", "caraterResidencia": "Habitual", "agua": "...", "esgoto": "...", "energia": "...", "rua": "...", "piso": "...", "bensTextoPadrao": "...", "bensListagem": "..." },
   "despesas": { "habitacao": 0, "habitacaoObs": "...", "energia": 0, "energiaObs": "...", "agua": 0, "aguaObs": "...", "alimentacao": 0, "alimentacaoObs": "...", "transporte": 0, "transporteObs": "...", "saude": 0, "saudeObs": "..." },
-  "conclusao": { "dataVisita": "...", "nomeEntrevistado": "...", "fonteRendaDescricao": "...", "rendaTotalExtenso": "...", "vulnerabilidadeEconomicaSevera": true, "necessidadeTratamentoContinuo": true, "naoDispoeMeiosProprios": true, "rendaAtendeCriterioLoas": true, "parecerFavoravel": true, "textoParecerComplementar": "..." },
+  "conclusao": { "dataVisita": "...", "nomeEntrevistado": "...", "fonteRendaDescricao": "...", "rendaTotalExtenso": "...", "vulnerabilidadeEconomicaSevera": true, "necessidadeTratamentoContinuo": true, "naoDispoeMeiosProprios": true, "rendaAtendeCriterioLoas": true, "parecerFavoravel": true, "textoEstudoSocial": "...", "textoDificuldades": "...", "textoParecerComplementar": "..." },
   "classificacao": { "complexidade": 1|2|3, "risco": 1|2|3, "distancia": 1|2|3, "dificuldadeAcesso": 1|2|3, "riscoSocial": 1|2|3, "justificativa": "..." },
-  "encerramento": { "municipio": "Mazagão", "uf": "AP", "dataPericia": "...", "horaPericia": "...", "nomePerito": "Ivonete Ferreira Maciel", "cargoPerito": "Doutora em Serviço Social", "cress": "CRESS 104 24ª Região-AP" },
+  "encerramento": { "municipio": "...", "uf": "...", "dataPericia": "...", "horaPericia": "...", "nomePerito": "Ivonete Ferreira Maciel", "cargoPerito": "Doutora em Serviço Social", "cress": "CRESS 104 24ª Região-AP" },
   "resumoVisualImagens": "Resumo detalhado dos pontos observados visualmente nas imagens"
 }`;
 
@@ -502,24 +526,33 @@ Formato obrigatório das chaves:
       if (!rawText) throw new Error("A IA não retornou conteúdo legível.");
 
       const extractedJson = JSON.parse(rawText.replace(/```json|```/g, "").trim());
-      this.formData = Object.assign(this.formData, extractedJson);
+      
+      // ISOLAMENTO TOTAL: inicia com clone limpo de DEFAULT_FORM_DATA para impedir que dados do modelo ou caso anterior permaneçam
+      const cleanForm = JSON.parse(JSON.stringify(DEFAULT_FORM_DATA));
+      this.deepMerge(cleanForm, extractedJson);
+      this.formData = cleanForm;
+
+      // Desmarca o botão de caso modelo na barra superior
+      this.quickChips.forEach(c => c.classList.remove("active"));
 
       const calc = calcularRendaPerCapita(this.formData.familia);
       this.formData.rendaTotalFamilia = calc.rendaTotal;
       this.formData.rendaPerCapita = calc.rendaPerCapita;
 
       this.renderFormPreview();
+      this.flashDocumentUpdate();
+      this.scrollToPage(1);
       this.hideTypingIndicator();
 
       const m = this.formData.moradia || {};
       const visualReport = `
 🏠 **Laudo de Inspeção Visual das Fotos do Imóvel e Visita:**
-- 🛣️ **Logradouro / Rua:** ${m.rua || "Identificada em área rural/periférica não pavimentada"}
-- 🧱 **Tipo de Construção:** Construção em ${m.construcao || "alvenaria/madeira"} (${m.comodos || 5} cômodos)
-- 🏠 **Cobertura / Telhado:** ${m.cobertura || "Telha de amianto/fibrocimento"}
-- 🟫 **Piso e Acabamento:** ${m.piso || "Lajota cerâmica simples com acabamento rústico"}
+- 🛣️ **Logradouro / Rua:** ${m.rua || "Identificada em área residencial"}
+- 🧱 **Tipo de Construção:** Construção em ${m.construcao || "alvenaria/madeira"} (${m.comodos || "---"} cômodos)
+- 🏠 **Cobertura / Telhado:** ${m.cobertura || "Telha de fibrocimento/barro"}
+- 🟫 **Piso e Acabamento:** ${m.piso || "Cerâmica/cimento"}
 - 🛋️ **Inventário Visual de Bens:** ${m.bensListagem || "Bens essenciais básicos de sobrevivência. Ausência de itens de luxo."}
-- 🚿 **Saneamento e Acesso:** ${m.agua || "Poço artesiano"} | ${m.esgoto || "Fossa séptica"}
+- 🚿 **Saneamento e Acesso:** ${m.agua || "Rede pública/Poço"} | ${m.esgoto || "Fossa séptica/Rede"}
 `;
 
       this.addAssistantMessage(
@@ -527,7 +560,7 @@ Formato obrigatório das chaves:
         
 ${visualReport}
 
-Todas as 8 seções do **Formulário de Perícia Socioeconômica (Anexo IV)** foram preenchidas e sincronizadas no formulário ao lado. Você pode baixar em **Word (.docx)** ou **PDF (.pdf)** a qualquer momento.`,
+Todas as seções do **Formulário de Perícia Socioeconômica (Anexo IV)** foram preenchidas e sincronizadas exclusivamente com base nos dados do periciado atual. Você pode baixar em **Word (.docx)** ou **PDF (.pdf)** a qualquer momento.`,
         this.formData
       );
     } catch (err) {
@@ -535,46 +568,123 @@ Todas as 8 seções do **Formulário de Perícia Socioeconômica (Anexo IV)** fo
       this.hideTypingIndicator();
       this.addAssistantMessage(`⚠️ Não foi possível concluir a extração via Gemini API: **${err.message}**.
       
-Verifique sua chave de API nas configurações ou utilize a extração inteligente integrada com os casos prontos.`);
+Verifique sua chave de API nas configurações ou utilize a extração inteligente integrada.`);
     }
   }
 
   async processWithLocalExtractor(userText, files) {
-    this.showTypingIndicator("Lendo documentos e analisando fotos do imóvel...");
+    this.showTypingIndicator("Lendo informações fornecidas e analisando documentos...");
 
-    await new Promise(r => setTimeout(r, 1200));
+    await new Promise(r => setTimeout(r, 900));
 
-    let caseToUse = SAMPLE_CASES.mazagao;
-    this.formData = JSON.parse(JSON.stringify(caseToUse.dados));
+    // ISOLAMENTO TOTAL: não sobrescreve com dados do modelo Mazagão!
+    // Cria um laudo limpo e preenche estritamente o que o usuário forneceu no texto ou arquivos.
+    const cleanForm = JSON.parse(JSON.stringify(DEFAULT_FORM_DATA));
+    const text = userText || "";
+
+    const extractByRegex = (patterns) => {
+      for (const p of patterns) {
+        const m = text.match(p);
+        if (m && m[1]) return m[1].trim();
+      }
+      return "";
+    };
+
+    const periciado = extractByRegex([
+      /(?:periciado|nome(?:\s+completo)?|requerente|autor|infante)[:\s]+([^\n,;]+)/i
+    ]);
+    const representante = extractByRegex([
+      /(?:representante(?:\s+legal)?|m[ãa]e|genitora)[:\s]+([^\n,;]+)/i
+    ]);
+    const cpf = extractByRegex([
+      /cpf[:\s]+([\d.-]+)/i,
+      /(\b\d{3}\.\d{3}\.\d{3}-\d{2}\b)/
+    ]);
+    const rg = extractByRegex([
+      /rg[:\s]+([\d.-]+)/i
+    ]);
+    const processo = extractByRegex([
+      /processo(?:\s+n[ºo]?)?[:\s]+([\d.-]+)/i,
+      /(\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b)/
+    ]);
+    const endereco = extractByRegex([
+      /(?:endere[çc]o|rua|local(?:idade)?)[:\s]+([^\n;]+)/i
+    ]);
+    const municipio = extractByRegex([
+      /(?:munic[íi]pio|cidade)[:\s]+([^\n,;/]+)/i
+    ]);
+    const telefone = extractByRegex([
+      /(?:telefone|fone|contato|celular)[:\s]+([^\n,;]+)/i,
+      /(\(?\d{2}\)?\s*\d{4,5}-?\d{4})/
+    ]);
+    const dataNasc = extractByRegex([
+      /(?:nascimento|data\s+de\s+nascimento|nasc)[:\s]+([\d/.-]+)/i,
+      /(\b\d{2}\/\d{2}\/\d{4}\b)/
+    ]);
+    const rendaText = extractByRegex([
+      /(?:renda(?:\s+mensal|\s+familiar)?|sal[áa]rio)[:\s]+(?:r\$\s*)?([\d.,]+)/i
+    ]);
+
+    if (periciado) cleanForm.identificacao.periciado = periciado;
+    if (representante) cleanForm.identificacao.representanteLegal = representante;
+    if (cpf) cleanForm.identificacao.cpf = cpf;
+    if (rg) cleanForm.identificacao.rg = rg;
+    if (processo) cleanForm.identificacao.processo = processo;
+    if (endereco) cleanForm.identificacao.endereco = endereco;
+    if (telefone) cleanForm.identificacao.telefone = telefone;
+    if (dataNasc) cleanForm.identificacao.dataNascimento = dataNasc;
+    if (municipio) cleanForm.encerramento.municipio = municipio;
+
+    const parsedRenda = rendaText ? parseFloat(rendaText.replace(/\./g, "").replace(",", ".")) || 0 : 0;
+    if (parsedRenda > 0) {
+      cleanForm.familia = [{
+        nome: representante || periciado || "Responsável",
+        parentesco: representante ? "Representante" : "Titular",
+        estadoCivil: "Não informado",
+        idadeNasc: "",
+        cpfNis: cpf || "",
+        ocupacao: "Declarada",
+        rendaMensal: parsedRenda,
+        tipoRenda: "Declarada"
+      }];
+      cleanForm.rendaTotalFamilia = parsedRenda;
+      cleanForm.rendaPerCapita = parsedRenda;
+      cleanForm.rendaObservacao = `Renda familiar declarada de R$ ${parsedRenda.toFixed(2)}.`;
+    }
 
     const hoje = new Date().toLocaleDateString("pt-BR");
-    this.formData.conclusao.dataVisita = hoje;
-    this.formData.encerramento.dataPericia = hoje;
+    cleanForm.conclusao.dataVisita = hoje;
+    cleanForm.encerramento.dataPericia = hoje;
+
+    // Se houver arquivos de fotos
+    const hasPhotos = files.some(f => f.type.startsWith("image/") || /\.(jpg|jpeg|png)$/i.test(f.name));
+    if (hasPhotos) {
+      cleanForm.moradia.tipo = "Casa";
+      cleanForm.moradia.construcao = "alvenaria/madeira";
+      cleanForm.moradia.cobertura = "telha";
+      cleanForm.moradia.piso = "cerâmica simples / cimento";
+      cleanForm.moradia.bensListagem = "Bens essenciais de sobrevivência identificados nas fotos.";
+      cleanForm.moradia.bensTextoPadrao = "O conjunto de bens móveis demonstra itens básicos de sobrevivência, sem indicar padrão incompatível com situação de vulnerabilidade.";
+    }
+
+    this.formData = cleanForm;
+    this.quickChips.forEach(c => c.classList.remove("active"));
 
     this.renderFormPreview();
+    this.flashDocumentUpdate();
+    this.scrollToPage(1);
     this.hideTypingIndicator();
 
-    const m = this.formData.moradia || {};
-    const visualReport = `
-🏠 **Laudo de Inspeção Visual das Fotos do Imóvel e Visita:**
-- 🛣️ **Logradouro / Rua:** ${m.rua}
-- 🧱 **Tipo de Construção:** Construção em ${m.construcao} com ${m.comodos} cômodos (${m.comodosDescricao || "sala, quarto, cozinha, banheiro, área"})
-- 🏠 **Cobertura / Telhado:** ${m.cobertura}
-- 🟫 **Piso e Acabamento:** ${m.piso}
-- 🛋️ **Inventário Visual de Bens:** ${m.bensListagem}
-- 🚿 **Saneamento e Acesso:** ${m.agua} | ${m.esgoto}
-`;
-
+    const id = this.formData.identificacao;
     this.addAssistantMessage(
-      `Concluí a extração dos dados a partir dos **documentos e fotos** analisados.
+      `Dados processados com sucesso! O laudo foi preenchido **exclusivamente com os dados fornecidos**, sem reaproveitar informações de outros modelos.
 
-${visualReport}
+✅ **Periciado:** ${id.periciado || "*(a preencher diretamente na folha ou enviar doc)*"}
+✅ **CPF:** ${id.cpf || "*(não informado)*"}
+✅ **Processo:** ${id.processo || "*(a preencher)*"}
+✅ **Local/Endereço:** ${id.endereco || cleanForm.encerramento.municipio || "*(a preencher)*"}
 
-✅ **Processo e Identificação:** ${this.formData.identificacao.processo} - ${this.formData.identificacao.periciado}.
-✅ **Composição Familiar:** ${this.formData.familia.length} membros extraídos com Renda Per Capita calculada em **R$ ${this.formData.rendaPerCapita.toFixed(2)}**.
-✅ **Parecer Conclusivo:** ${this.formData.conclusao.parecerFavoravel ? "POSSUI AMPARO LEGAL E SOCIAL (BPC)" : "NÃO POSSUI AMPARO"}.
-
-O formulário oficial do Anexo IV foi totalmente preenchido. Você pode baixar em **Word (.docx)** ou **PDF (.pdf)** agora mesmo.`,
+*Dica: Você pode digitar e ajustar qualquer campo diretamente na folha oficial A4 ao lado, ou configurar a sua chave Gemini API em 'Configurar IA' para extração multimodal completa de PDFs e fotos.*`,
       this.formData
     );
   }
@@ -589,6 +699,8 @@ O formulário oficial do Anexo IV foi totalmente preenchido. Você pode baixar e
     setTimeout(() => {
       this.formData = JSON.parse(JSON.stringify(sample.dados));
       this.renderFormPreview();
+      this.flashDocumentUpdate();
+      this.scrollToPage(1);
       this.hideTypingIndicator();
 
       const m = this.formData.moradia || {};
@@ -615,6 +727,8 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
   resetToBlankForm() {
     this.formData = JSON.parse(JSON.stringify(DEFAULT_FORM_DATA));
     this.renderFormPreview();
+    this.flashDocumentUpdate();
+    this.scrollToPage(1);
     document.querySelectorAll(".chip-btn").forEach(c => c.classList.remove("active"));
     const btn = document.getElementById("btnNovoLaudo");
     if (btn) btn.classList.add("active");
@@ -658,8 +772,8 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
     const rubricaHtml = `
       <div class="perita-rubrica-box">
         <div class="perita-rubrica-line">
-          <em>Ivonete Ferreira Maciel</em><br>
-          <span style="font-size:7pt; color:#555;">Doutora em Serviço Social<br>CRESS 104 24ª Região-AP</span>
+          <em>${enc.nomePerito || 'Ivonete Ferreira Maciel'}</em><br>
+          <span style="font-size:7pt; color:#555;">${enc.cargoPerito || 'Doutora em Serviço Social'}<br>${enc.cress || 'CRESS 104 24ª Região-AP'}</span>
         </div>
       </div>
     `;
@@ -674,20 +788,20 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
             
             <table class="judicial-box-table">
               <tr>
-                <td colspan="3"><span class="field-label">Processo nº</span> <span contenteditable="true" class="editable-field" data-path="identificacao.processo" style="font-weight:bold;">${id.processo || '1006778-05.2026.4.01.3100'}</span></td>
+                <td colspan="3"><span class="field-label">Processo nº</span> <span contenteditable="true" class="editable-field" data-path="identificacao.processo" style="font-weight:bold;">${id.processo || ''}</span></td>
               </tr>
               <tr>
-                <td colspan="3"><span class="field-label">Periciado:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.periciado" style="font-weight:bold;">${id.periciado || 'E.L.P.S'}</span></td>
+                <td colspan="3"><span class="field-label">Periciado:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.periciado" style="font-weight:bold;">${id.periciado || ''}</span></td>
               </tr>
               <tr>
-                <td colspan="3"><span class="field-label">Representante Legal:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.representanteLegal" style="font-weight:bold;">${id.representanteLegal || 'EMILLY GLEYDA MOTA PAIXÃO'}</span></td>
+                <td colspan="3"><span class="field-label">Representante Legal:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.representanteLegal" style="font-weight:bold;">${id.representanteLegal || ''}</span></td>
               </tr>
               <tr>
                 <td colspan="3">
-                  <span class="field-label">CPF:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.cpf">${id.cpf || '065.385.402-10'}</span> &nbsp;&nbsp;&nbsp;&nbsp;
-                  <span class="field-label">RG:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.rg">${id.rg || '968752'}</span> &nbsp;&nbsp;&nbsp;&nbsp;
-                  <span class="field-label">COD.F</span> <span contenteditable="true" class="editable-field" data-path="identificacao.codF">${id.codF || '5392856845'}</span> &nbsp;&nbsp;&nbsp;&nbsp;
-                  <span class="field-label">NIS:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.nis">${id.nis || '23831498861'}</span>
+                  <span class="field-label">CPF:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.cpf">${id.cpf || ''}</span> &nbsp;&nbsp;&nbsp;&nbsp;
+                  <span class="field-label">RG:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.rg">${id.rg || ''}</span> &nbsp;&nbsp;&nbsp;&nbsp;
+                  <span class="field-label">COD.F</span> <span contenteditable="true" class="editable-field" data-path="identificacao.codF">${id.codF || ''}</span> &nbsp;&nbsp;&nbsp;&nbsp;
+                  <span class="field-label">NIS:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.nis">${id.nis || ''}</span>
                 </td>
               </tr>
               <tr>
@@ -698,47 +812,47 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
                 </td>
               </tr>
               <tr>
-                <td colspan="3"><span class="field-label">Data Nascimento:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.dataNascimento">${id.dataNascimento || '14/11/2017'}</span></td>
+                <td colspan="3"><span class="field-label">Data Nascimento:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.dataNascimento">${id.dataNascimento || ''}</span></td>
               </tr>
               <tr>
                 <td colspan="3"><span class="field-label">OBJETO:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.objeto">${id.objeto || 'Benefício de Prestação Continuada- BPC'}</span></td>
               </tr>
               <tr>
                 <td style="width:42%;">
-                  <span class="field-label">Profissão Anterior:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.profissaoAnterior">${id.profissaoAnterior || 'Estudante'}</span><br>
-                  <span class="field-label">Profissão Atual:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.profissaoAtual">${id.profissaoAtual || 'Estudante'}</span>
+                  <span class="field-label">Profissão Anterior:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.profissaoAnterior">${id.profissaoAnterior || ''}</span><br>
+                  <span class="field-label">Profissão Atual:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.profissaoAtual">${id.profissaoAtual || ''}</span>
                 </td>
                 <td style="width:28%;">
                   <span class="field-label">Estado Civil:</span><br>
-                  <span contenteditable="true" class="editable-field" data-path="identificacao.estadoCivil">${id.estadoCivil || 'Solteiro'}</span>
+                  <span contenteditable="true" class="editable-field" data-path="identificacao.estadoCivil">${id.estadoCivil || ''}</span>
                 </td>
                 <td style="width:30%;">
                   <span class="field-label">Naturalidade:</span><br>
-                  <span contenteditable="true" class="editable-field" data-path="identificacao.naturalidade">${id.naturalidade || 'Macapá/AP'}</span>
+                  <span contenteditable="true" class="editable-field" data-path="identificacao.naturalidade">${id.naturalidade || ''}</span>
                 </td>
               </tr>
               <tr>
-                <td colspan="3"><span class="field-label">Escolaridade:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.escolaridade">${id.escolaridade || '3 ano fundamental'}</span></td>
+                <td colspan="3"><span class="field-label">Escolaridade:</span> <span contenteditable="true" class="editable-field" data-path="identificacao.escolaridade">${id.escolaridade || ''}</span></td>
               </tr>
               <tr>
-                <td colspan="2"><span class="field-label">Endereço da parte (igual ao local da perícia)</span> <span contenteditable="true" class="editable-field" data-path="identificacao.endereco">${id.endereco || 'Area Rural Anauerapucu, Rodovia Macapá Mazagão Nº 1099; Mazagão/AP, CEP: 68940-000'}</span></td>
-                <td><span class="field-label">Telefone:</span><br><span contenteditable="true" class="editable-field" data-path="identificacao.telefone">${id.telefone || '(96) 99151-6520'}</span></td>
+                <td colspan="2"><span class="field-label">Endereço da parte (igual ao local da perícia)</span> <span contenteditable="true" class="editable-field" data-path="identificacao.endereco">${id.endereco || ''}</span></td>
+                <td><span class="field-label">Telefone:</span><br><span contenteditable="true" class="editable-field" data-path="identificacao.telefone">${id.telefone || ''}</span></td>
               </tr>
             </table>
 
             <div class="judicial-section-title">SITUAÇÃO PESSOAL</div>
             
             <div class="field-question">Está em idade de trabalhar (acima de 16 anos)?</div>
-            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="situacaoPessoal.idadeTrabalharQual">${sp.idadeTrabalharQual || (sp.idadeTrabalhar === 'Não' ? 'Não.' : 'Sim.')}</span></div>
+            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="situacaoPessoal.idadeTrabalharQual">${sp.idadeTrabalharQual || (sp.idadeTrabalhar ? (sp.idadeTrabalhar === 'Não' ? 'Não.' : 'Sim.') : '')}</span></div>
 
             <div class="field-question">Realizou cursos profissionalizantes? Especificar.</div>
-            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="situacaoPessoal.cursosQual">${sp.cursosQual || (sp.cursosProfissionalizantes === 'Não' ? 'Não.' : 'Sim.')}</span></div>
+            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="situacaoPessoal.cursosQual">${sp.cursosQual || (sp.cursosProfissionalizantes ? (sp.cursosProfissionalizantes === 'Não' ? 'Não.' : 'Sim.') : '')}</span></div>
 
             <div class="field-question">Já exerceu atividade remunerada? Especificar.</div>
-            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="situacaoPessoal.jaExerceuQual">${sp.jaExerceuQual || (sp.jaExerceuAtividade === 'Não' ? 'Não.' : 'Sim.')}</span></div>
+            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="situacaoPessoal.jaExerceuQual">${sp.jaExerceuQual || (sp.jaExerceuAtividade ? (sp.jaExerceuAtividade === 'Não' ? 'Não.' : 'Sim.') : '')}</span></div>
 
             <div class="field-question">Teve a CTPS assinada? Especificar.</div>
-            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="situacaoPessoal.teveCtpsDetalhes">${sp.teveCtpsDetalhes || (sp.teveCtpsAssinada === 'Não' ? 'Não.' : 'Sim.')}</span></div>
+            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="situacaoPessoal.teveCtpsDetalhes">${sp.teveCtpsDetalhes || (sp.teveCtpsAssinada ? (sp.teveCtpsAssinada === 'Não' ? 'Não.' : 'Sim.') : '')}</span></div>
 
             <div style="margin-top:10px;">
               <span class="field-label">CTPS (Nº &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Série &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; )</span>
@@ -775,14 +889,24 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
                 </tr>
               </thead>
               <tbody>
-                ${fam.map((f, idx) => `
+                ${fam.length > 0 ? fam.map((f, idx) => `
                   <tr>
-                    <td><span contenteditable="true" class="editable-field" onblur="app.updateFamilyMember(${idx}, 'nome', this.innerText.trim())">${f.nome || ''}</span></td>
-                    <td style="text-align:center;"><span contenteditable="true" class="editable-field" onblur="app.updateFamilyMember(${idx}, 'estadoCivil', this.innerText.trim())">${f.estadoCivil || ''}</span></td>
-                    <td style="text-align:center;"><span contenteditable="true" class="editable-field" onblur="app.updateFamilyMember(${idx}, 'cpfNis', this.innerText.trim())">${f.cpfNis || ''}</span></td>
-                    <td style="text-align:center;"><span contenteditable="true" class="editable-field" onblur="app.updateFamilyMember(${idx}, 'idadeNasc', this.innerText.trim())">${f.idadeNasc || ''}</span></td>
+                    <td style="position:relative;">
+                      <span contenteditable="true" class="editable-field" oninput="app.updateFamilyMember(${idx}, 'nome', this.innerText.trim(), false)" onblur="app.updateFamilyMember(${idx}, 'nome', this.innerText.trim(), false)">${f.nome || ''}</span>
+                      <button type="button" class="btn-remove-family-member" onclick="app.removeFamilyMember(${idx})" title="Remover este membro familiar">✕</button>
+                    </td>
+                    <td style="text-align:center;"><span contenteditable="true" class="editable-field" oninput="app.updateFamilyMember(${idx}, 'estadoCivil', this.innerText.trim(), false)" onblur="app.updateFamilyMember(${idx}, 'estadoCivil', this.innerText.trim(), false)">${f.estadoCivil || ''}</span></td>
+                    <td style="text-align:center;"><span contenteditable="true" class="editable-field" oninput="app.updateFamilyMember(${idx}, 'cpfNis', this.innerText.trim(), false)" onblur="app.updateFamilyMember(${idx}, 'cpfNis', this.innerText.trim(), false)">${f.cpfNis || ''}</span></td>
+                    <td style="text-align:center;"><span contenteditable="true" class="editable-field" oninput="app.updateFamilyMember(${idx}, 'idadeNasc', this.innerText.trim(), false)" onblur="app.updateFamilyMember(${idx}, 'idadeNasc', this.innerText.trim(), false)">${f.idadeNasc || ''}</span></td>
                   </tr>
-                `).join('')}
+                `).join('') : `
+                  <tr>
+                    <td><span contenteditable="true" class="editable-field">&nbsp;</span></td>
+                    <td><span contenteditable="true" class="editable-field">&nbsp;</span></td>
+                    <td><span contenteditable="true" class="editable-field">&nbsp;</span></td>
+                    <td><span contenteditable="true" class="editable-field">&nbsp;</span></td>
+                  </tr>
+                `}
               </tbody>
             </table>
 
@@ -798,26 +922,39 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
                 </tr>
               </thead>
               <tbody>
-                ${fam.map((f, idx) => `
+                ${fam.length > 0 ? fam.map((f, idx) => `
                   <tr>
-                    <td><span contenteditable="true" class="editable-field" onblur="app.updateFamilyMember(${idx}, 'parentesco', this.innerText.trim())">${f.parentesco || ''}</span></td>
-                    <td><span contenteditable="true" class="editable-field" onblur="app.updateFamilyMember(${idx}, 'ocupacao', this.innerText.trim())">${f.ocupacao || ''}</span></td>
-                    <td style="text-align:right;"><span contenteditable="true" class="editable-field" onblur="app.updateFamilyMember(${idx}, 'rendaMensal', parseFloat(this.innerText.replace(/[^\d.-]/g, ''))||0)">${formatBRL(f.rendaMensal)}</span></td>
-                    <td style="text-align:center;"><span contenteditable="true" class="editable-field" onblur="app.updateFamilyMember(${idx}, 'tipoRenda', this.innerText.trim())">${f.tipoRenda || 'Comprovada'}</span></td>
+                    <td><span contenteditable="true" class="editable-field" oninput="app.updateFamilyMember(${idx}, 'parentesco', this.innerText.trim(), false)" onblur="app.updateFamilyMember(${idx}, 'parentesco', this.innerText.trim(), false)">${f.parentesco || ''}</span></td>
+                    <td><span contenteditable="true" class="editable-field" oninput="app.updateFamilyMember(${idx}, 'ocupacao', this.innerText.trim(), false)" onblur="app.updateFamilyMember(${idx}, 'ocupacao', this.innerText.trim(), false)">${f.ocupacao || ''}</span></td>
+                    <td style="text-align:right;"><span contenteditable="true" class="editable-field" onblur="app.updateFamilyMember(${idx}, 'rendaMensal', parseFloat(this.innerText.replace(/[^\\d.-]/g, ''))||0, true)">${formatBRL(f.rendaMensal)}</span></td>
+                    <td style="text-align:center;"><span contenteditable="true" class="editable-field" oninput="app.updateFamilyMember(${idx}, 'tipoRenda', this.innerText.trim(), false)" onblur="app.updateFamilyMember(${idx}, 'tipoRenda', this.innerText.trim(), false)">${f.tipoRenda || 'Declarada'}</span></td>
                   </tr>
-                `).join('')}
+                `).join('') : `
+                  <tr>
+                    <td><span contenteditable="true" class="editable-field">&nbsp;</span></td>
+                    <td><span contenteditable="true" class="editable-field">&nbsp;</span></td>
+                    <td><span contenteditable="true" class="editable-field">&nbsp;</span></td>
+                    <td><span contenteditable="true" class="editable-field">&nbsp;</span></td>
+                  </tr>
+                `}
               </tbody>
             </table>
+
+            <div style="display:flex; justify-content:flex-end; margin-top:4px;">
+              <button type="button" class="btn-add-family-member" onclick="app.addFamilyMember()">
+                <span>＋</span> Adicionar Membro da Família
+              </button>
+            </div>
 
             <div class="judicial-paragraph" style="font-size:8.2pt; color:#222; margin-top:10px; line-height:1.32;">
               * “renda mensal bruta familiar: a soma dos rendimentos brutos auferidos mensalmente pelos membros da família composta por salários, proventos, pensões, pensões alimentícias, benefícios de previdência pública ou privada, comissões, pró-labore, outros rendimentos do trabalho não assalariado, rendimentos do mercado informal ou autônomo, rendimentos auferidos do patrimônio, Renda Mensal Vitalícia e Benefício de Prestação Continuada, ressalvado o disposto no parágrafo único do art. 19.” (Art. 4º, VI, do anexo do Decreto nº 6.214/2007).
             </div>
 
             <div class="field-question" style="margin-top:14px;">Quantos possuem carteira de trabalho, CTPS, assinada?</div>
-            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="carteiraAssinadaFamilia">${d.carteiraAssinadaFamilia || 'Nenhum membro da família possui CTPS assinada atualmente.'}</span></div>
+            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="carteiraAssinadaFamilia">${d.carteiraAssinadaFamilia || (fam.length > 0 ? 'Nenhum membro da família possui CTPS assinada atualmente.' : '')}</span></div>
 
             <div class="field-question" style="margin-top:14px;">Qual a renda familiar per capita mensal? Especificar com cálculo, conforme art. 20 da lei nº. 8.742/93 - LOAS.</div>
-            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="rendaObservacao">${d.rendaObservacao || `Conforme CAD ÚNICO em anexo, a genitora do autor possui renda per capita no valor de ${formatBRL(d.rendaPerCapita)} (cento e cinco reais).`}</span></div>
+            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="rendaObservacao">${d.rendaObservacao || (d.rendaPerCapita !== undefined && d.rendaPerCapita !== null && fam.length > 0 ? `Renda familiar total de ${formatBRL(d.rendaTotalFamilia || 0)}, com renda per capita apurada em ${formatBRL(d.rendaPerCapita)} para ${fam.length} membro(s) do grupo familiar, nos termos do art. 20 da Lei nº 8.742/93.` : '')}</span></div>
 
             ${rubricaHtml}
           </div>
@@ -831,21 +968,21 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
             <div class="judicial-section-title">SITUAÇÃO DE MORADIA</div>
 
             <div class="field-question">Reside em quê? Abrigos, asilos ou similares, casa, apartamento etc.</div>
-            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="moradia.detalhesCompletos">${m.detalhesCompletos || `Reside em casa com construção em ${m.construcao || 'alvenaria'}, coberto com ${m.cobertura || 'telha de amianto'} e possui 05 (cinco) cômodos: (${m.comodosDescricao || 'uma sala, um quarto, uma suite, uma cozinha conjugada, banheiro, area de servico'}). A residência encontra-se em área rural do município de Mazagão, de difícil acesso, com infraestrutura limitada. Fica próximos aos equipamentos sociais necessários a uma boa convivência comunitária, tais como: Escola, unidade básica de saúde, igrejas, mercantis e outros. Estado geral: condições razoáveis, porém sem padrões adequados de saneamento. Infraestrutura comunitária: ${m.agua || 'Ausência de abastecimento público de água tratada'}, ${m.esgoto || 'Ausência de rede de esgoto'}, ${m.energia || 'Iluminação elétrica regular, porém instável em horários de pico'}, ${m.rua || 'Rua pavimentada, mas com trechos degradados e de difícil trafegabilidade em período chuvoso e Sistema de telefonia e internet instável ou inexistente, dificultando comunicação e emergência'}.`}</span></div>
+            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="moradia.detalhesCompletos">${m.detalhesCompletos || (m.tipo || m.construcao || m.comodos ? `Reside em ${m.tipo || 'casa'}${m.construcao ? ' com construção em ' + m.construcao : ''}${m.cobertura ? ', coberto com ' + m.cobertura : ''}${m.comodos ? ' e possui ' + m.comodos + ' cômodos' : ''}${m.comodosDescricao ? ' (' + m.comodosDescricao + ')' : ''}.${m.zona ? ' A residência encontra-se em área ' + m.zona + '.' : ''}${m.acesso ? ' Acesso ' + m.acesso + '.' : ''} Infraestrutura: água (${m.agua || 'regular'}), esgoto (${m.esgoto || 'fossa/rede'}), energia elétrica (${m.energia || 'regular'}), via pública (${m.rua || 'pavimentada/terra'}), piso (${m.piso || 'cerâmica/cimento'}).` : '')}</span></div>
 
             <div class="field-question" style="margin-top:12px;">Há quanto tempo reside no local?</div>
-            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="moradia.tempoResidencia">${m.tempoResidencia || 'Residem neste imóvel há 10 anos.'}</span></div>
+            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="moradia.tempoResidencia">${m.tempoResidencia ? (m.tempoResidencia.includes('ano') || m.tempoResidencia.includes('mês') ? (m.tempoResidencia.startsWith('Reside') ? m.tempoResidencia : 'Reside neste imóvel há ' + m.tempoResidencia + '.') : m.tempoResidencia) : ''}</span></div>
 
             <div class="field-question" style="margin-top:12px;">Imóvel próprio, alugado ou de terceiro?</div>
-            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="moradia.proprietarioImovel">${m.proprietarioImovel ? (m.proprietarioImovel.startsWith('É') ? m.proprietarioImovel : 'É da ' + m.proprietarioImovel) : 'É da avó do requerente Sra. Deusa Correia da Silva.'}</span></div>
+            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="moradia.proprietarioImovel">${m.proprietarioImovel ? (m.proprietarioImovel.startsWith('É') || m.proprietarioImovel.startsWith('Imóvel') ? m.proprietarioImovel : 'Imóvel ' + (m.regimeImovel || '') + (m.proprietarioImovel ? ' - ' + m.proprietarioImovel : '')) : (m.regimeImovel ? 'Imóvel ' + m.regimeImovel : '')}</span></div>
 
             <div class="field-question" style="margin-top:12px;">Trata-se residência habitual ou temporária (de passagem)?</div>
-            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="moradia.caraterResidencia">${m.caraterResidencia || 'Residência habitual.'}</span></div>
+            <div class="field-answer"><span contenteditable="true" class="editable-field-block" data-path="moradia.caraterResidencia">${m.caraterResidencia ? (m.caraterResidencia.startsWith('Residência') ? m.caraterResidencia : 'Residência ' + m.caraterResidencia.toLowerCase() + '.') : ''}</span></div>
 
             <div class="field-question" style="margin-top:12px;">Especificar que bens guarnecem a residência.</div>
             <div class="field-answer">
-              <div contenteditable="true" class="editable-field-block" data-path="moradia.bensTextoPadrao">${m.bensTextoPadrao || 'O conjunto de bens descritos a seguir demonstra itens básicos de sobrevivência, não indicando padrão incompatível com situação de vulnerabilidade.'}</div>
-              <div contenteditable="true" class="editable-field-block" data-path="moradia.bensListagem" style="margin-top:6px;">No Imóvel continha os seguintes bens permanentes: ${m.bensListagem || '01 (um) fogão cooktop, 01 (um) ar-condicionado, 02 (duas) caixa de som, 01 (uma) cama de casal, 01 (uma) mesa de madeira, 01 (uma) mesa plástica infantil, 01 (uma) cama de solteiro, 01 (uma) Tv Samsung, 01 (uma) Máquina de Lavar Electrolux, 01 (uma) Geladeira Panasonic, (um) Freezer cônsul, 01 (um) Bebedouro Esmaltec, 01 (um) ventilador de mesa Arno, 01 (uma) comada de madeira, 01 (um) Guarda roupa de três portas, 01 (um) sofá, 01 (um) som Samsung, 01 (um) rack em MDF, 01 (uma) central de ar .'} Nenhum bem de alto valor comercial ou que indique capacidade econômica foi encontrado.</div>
+              <div contenteditable="true" class="editable-field-block" data-path="moradia.bensTextoPadrao">${m.bensTextoPadrao || (m.bensListagem ? 'O conjunto de bens descritos a seguir demonstra itens básicos de sobrevivência, não indicando padrão incompatível com situação de vulnerabilidade.' : '')}</div>
+              <div contenteditable="true" class="editable-field-block" data-path="moradia.bensListagem" style="margin-top:6px;">${m.bensListagem ? `No imóvel continha os seguintes bens permanentes: ${m.bensListagem}. Nenhum bem de alto valor comercial ou que indique capacidade econômica foi encontrado.` : ''}</div>
             </div>
 
             ${rubricaHtml}
@@ -861,20 +998,15 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
 
             <div class="field-question">Quais os gastos com moradia, água, luz etc.?</div>
             <div class="field-answer">
-              <p class="judicial-paragraph"><strong>Habitação:</strong> <span contenteditable="true" class="editable-field" data-path="despesas.habitacaoObs">${desp.habitacaoObs || 'Não possui gasto neste item porque residem em imóvel cedido, ou seja, sem custos fixos, porém, há custos indiretos altos, como manutenção de poço, fossa e estrutura.'}</span></p>
-              <p class="judicial-paragraph" style="margin-top:6px;"><strong>Energia elétrica:</strong> <span contenteditable="true" class="editable-field" data-path="despesas.energiaObs">${desp.energiaObs || `é fornecida pela empresa Equatorial no valor de ${formatBRL(desp.energia)} (trezentos e cinquenta reais). Valor proporcional ao mínimo necessário.`}</span></p>
-              <p class="judicial-paragraph" style="margin-top:6px;"><strong>Alimentação:</strong> <span contenteditable="true" class="editable-field" data-path="despesas.alimentacaoObs">${desp.alimentacaoObs || `O requerente possui seletividade alimentar. Gastam em média ${formatBRL(desp.alimentacao)} (seiscentos reais) mensais, valor abaixo do mínimo nutricional recomendado, indicando insegurança alimentar.`}</span></p>
-              <p class="judicial-paragraph" style="margin-top:6px;"><strong>Transporte:</strong> <span contenteditable="true" class="editable-field" data-path="despesas.transporteObs">${desp.transporteObs || 'A família realiza o deslocamento a pé em virtude de ser área rural, o requerente usa transporte escolar para ir à escola. E na vila não existe transporte coletivo local. Ausência de transporte público impacta nos deslocamentos a Macapá e exigem gastos extraordinários como: combustível, alimentação durante deslocamento, o itinerário é de aproximadamente 64 km (ida e volta). Esses custos são incompatíveis com a renda familiar, dificultando a continuidade do tratamento do infante.'}</span></p>
+              <p class="judicial-paragraph"><strong>Habitação:</strong> <span contenteditable="true" class="editable-field" data-path="despesas.habitacaoObs">${desp.habitacaoObs || (desp.habitacao ? `Gasto mensal com habitação no valor de ${formatBRL(desp.habitacao)}.` : '')}</span></p>
+              <p class="judicial-paragraph" style="margin-top:6px;"><strong>Energia elétrica:</strong> <span contenteditable="true" class="editable-field" data-path="despesas.energiaObs">${desp.energiaObs || (desp.energia ? `Gasto médio com energia elétrica no valor de ${formatBRL(desp.energia)}.` : '')}</span></p>
+              <p class="judicial-paragraph" style="margin-top:6px;"><strong>Alimentação:</strong> <span contenteditable="true" class="editable-field" data-path="despesas.alimentacaoObs">${desp.alimentacaoObs || (desp.alimentacao ? `Gasto estimado com alimentação básica familiar no valor de ${formatBRL(desp.alimentacao)} mensais.` : '')}</span></p>
+              <p class="judicial-paragraph" style="margin-top:6px;"><strong>Transporte:</strong> <span contenteditable="true" class="editable-field" data-path="despesas.transporteObs">${desp.transporteObs || (desp.transporte ? `Despesas com transporte no valor de ${formatBRL(desp.transporte)}.` : '')}</span></p>
             </div>
 
             <div class="field-question" style="margin-top:14px;">Quais os gastos com saúde (tudo incluído)</div>
             <div class="field-answer">
-              <div contenteditable="true" class="editable-field-block judicial-paragraph" data-path="despesas.saudeObs">
-                O requerente realiza tratamento médico contínuo pelo SUS do Governo do Estado do Amapá, através de tratamento médico contínuo no Hospital de Clínica Alberto Lima-HCAL/Núcleo de Avaliação do Neurodesenvolvimento-NANDE e também do Centro de Referência em Doenças Tropicais e quando necessário em situações do cotidiano utilizam concomitantemente os serviços SUS no município de Mazagão, através da UBS desta localidade. Ressalto que há Necessidade de acompanhamento regular em Macapá para consultas, avaliações e possíveis terapias, conforme Relatórios e Laudo Médico em anexo. O deslocamento é financeiramente inviável com a renda atual e a irregularidade no acompanhamento compromete a evolução do quadro de saúde.
-              </div>
-              <div class="judicial-paragraph" style="margin-top:8px;">
-                A falta de recursos financeiros contribui para o não comparecimento às consultas com a regularidade necessária para a evolução do tratamento e caracteriza risco social, risco à saúde e impedimento de desenvolvimento adequado, o que reforça a necessidade do benefício.
-              </div>
+              <div contenteditable="true" class="editable-field-block judicial-paragraph" data-path="despesas.saudeObs">${desp.saudeObs || ''}</div>
             </div>
 
             ${rubricaHtml}
@@ -888,13 +1020,9 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
           <div class="page-content-body">
             <div class="judicial-section-title">CONCLUSÕES</div>
 
-            <div contenteditable="true" class="editable-field-block judicial-paragraph" data-path="conclusao.textoEstudoSocial">
-              Este estudo social foi elaborado após visita domiciliar “In Lócus” no dia 07 de setembro de 2026, após informações fornecidas pela genitora do requerente Srª Emilly Gleyda Mota Paixão. A qual informou que o infante não possui no momento nenhum tipo de renda própria. A prole possui duas fontes, uma provida pelo programa social do Bolsa Família no valor de R$ 600,00 (Seiscentos reais) e outra provida pela atividade laboral do genitor na função de autônomo na atividade auxiliar de serviços gerais que desenvolve renda está não fixa de aproximadamente R$ 400,00, a qual é insuficiente para prover todas as necessidades básicas que o infante precisa.
-            </div>
+            <div contenteditable="true" class="editable-field-block judicial-paragraph" data-path="conclusao.textoEstudoSocial">${c.textoEstudoSocial || (c.textoParecerComplementar ? c.textoParecerComplementar.split('\n\n')[0] : '')}</div>
 
-            <div contenteditable="true" class="editable-field-block judicial-paragraph" data-path="conclusao.textoDificuldades" style="margin-top:6px;">
-              Ressaltou que possuem muita dificuldade para realizar o tratamento de saúde, pois, na vila onde residem não tem este tipo de tratamento de saúde e não possuem recursos financeiros para se deslocarem até a capital (Macapá) com a frequência necessária que o tratamento requer. Portanto, é fulcral adquiri-lo, pois, o mesmo irá contribuir para custear o transporte até os equipamentos sociais onde realizam às terapias multidisciplinar, ou seja, na capital, as quais são fulcrais para evolução da saúde e qualidade de vida.
-            </div>
+            <div contenteditable="true" class="editable-field-block judicial-paragraph" data-path="conclusao.textoDificuldades" style="margin-top:6px;">${c.textoDificuldades || (c.textoParecerComplementar && c.textoParecerComplementar.split('\n\n')[1] ? c.textoParecerComplementar.split('\n\n')[1] : '')}</div>
 
             <div class="judicial-paragraph" style="margin-top:6px;">
               Portanto, analisando o que preconiza a Fundamentação Legal: a elegibilidade do infante encontra amparo nos seguintes dispositivos:
@@ -934,8 +1062,8 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
             </div>
 
             <div class="judicial-paragraph" style="margin-top:4px;">
-              O infante encontra-se em situação de vulnerabilidade econômica severa.<br>
-              Possui necessidade comprovada de tratamento contínuo, cuja manutenção depende de recursos .
+              ${c.vulnerabilidadeEconomicaSevera ? 'O requerente encontra-se em situação de vulnerabilidade econômica severa.<br>' : ''}
+              ${c.necessidadeTratamentoContinuo ? 'Possui necessidade comprovada de tratamento contínuo, cuja manutenção depende de recursos.' : ''}
             </div>
 
             <ul style="margin: 4px 0 8px 22px; padding:0; line-height:1.35; text-align:justify;">
@@ -945,30 +1073,50 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
             </ul>
 
             <div class="judicial-paragraph" style="margin-top:6px;">
-              Assim, o requerente possui amparo legal e social para a concessão do Benefício de Prestação–Continuada BPC.
+              Assim, o requerente <span class="clickable-parecer" onclick="app.toggleParecer()" title="Clique para alternar parecer">${c.parecerFavoravel ? '<strong>possui</strong>' : '<strong>não possui</strong>'}</span> amparo legal e social para a concessão do Benefício de Prestação Continuada BPC.
             </div>
 
             <div class="judicial-paragraph" style="font-weight:bold; margin-top:10px;">
-              Fundamentadamente, se for o caso, classifique a perícia de 1 a 3 de acordo com o grau crescente de complexidade, risco, distância e dificuldade de acesso ao local da perícia, O local da Perícia Social apresenta risco e dificuldade de acesso com grau 3, está situada em local de risco social elevado.
+              Fundamentadamente, se for o caso, classifique a perícia de 1 a 3 de acordo com o grau crescente de complexidade, risco, distância e dificuldade de acesso ao local da perícia:
             </div>
 
             <div class="judicial-paragraph" style="margin-top:4px;">
-              <strong>RESPOSTA:</strong> <span contenteditable="true" class="editable-field" data-path="classificacao.justificativa">${cl.justificativa || 'Grau 3, porque o endereço do requerente está localizado em área rural no Município de Mazagão distantes de Macapá aproximadamente 32 Km, indo pela BR Jucelino Kubitschek, em média são 1h e meia de viagem, porém, tendo que percorrer total de 64 km (ida e volta) por conseguinte, a maior dificuldade foi distância e o acesso ao celular que costuma ficar desconectado, ou seja, não funciona bem a internet naquela localidade.'}</span>
+              <strong>RESPOSTA:</strong> <span contenteditable="true" class="editable-field" data-path="classificacao.justificativa">${cl.justificativa || ''}</span>
             </div>
 
             <div style="margin-top:8px; font-size:9.5pt; line-height:1.45;">
-              <div>Complexidade &nbsp;&nbsp;&nbsp;&nbsp; ( &nbsp; ) 1 &nbsp;&nbsp; ( &nbsp; ) 2 &nbsp;&nbsp; ( <strong>x</strong> ) 3</div>
-              <div>Risco &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ( &nbsp; ) 1 &nbsp;&nbsp; ( &nbsp; ) 2 &nbsp;&nbsp; ( <strong>x</strong> ) 3</div>
-              <div>Distância &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ( &nbsp; ) 1 &nbsp;&nbsp; ( &nbsp; ) 2 &nbsp;&nbsp; ( <strong>x</strong> ) 3</div>
-              <div>Dificuldade de acesso ( &nbsp; ) 1 &nbsp;&nbsp; ( &nbsp; ) 2 &nbsp;&nbsp; ( <strong>x</strong> ) 3</div>
-              <div>Situação em local de risco social elevado ( &nbsp; ) 1 &nbsp;&nbsp; ( &nbsp; ) 2 &nbsp;&nbsp; ( <strong>x</strong> ) 3</div>
+              <div class="score-row">Complexidade &nbsp;&nbsp;&nbsp;&nbsp; 
+                <span class="clickable-score ${cl.complexidade == 1 ? 'selected' : ''}" onclick="app.setClassification('complexidade', 1)" title="Nível 1">( ${cl.complexidade == 1 ? '<strong>x</strong>' : '&nbsp;'} ) 1</span> &nbsp;&nbsp; 
+                <span class="clickable-score ${cl.complexidade == 2 ? 'selected' : ''}" onclick="app.setClassification('complexidade', 2)" title="Nível 2">( ${cl.complexidade == 2 ? '<strong>x</strong>' : '&nbsp;'} ) 2</span> &nbsp;&nbsp; 
+                <span class="clickable-score ${cl.complexidade == 3 ? 'selected' : ''}" onclick="app.setClassification('complexidade', 3)" title="Nível 3">( ${cl.complexidade == 3 ? '<strong>x</strong>' : '&nbsp;'} ) 3</span>
+              </div>
+              <div class="score-row">Risco &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 
+                <span class="clickable-score ${cl.risco == 1 ? 'selected' : ''}" onclick="app.setClassification('risco', 1)" title="Nível 1">( ${cl.risco == 1 ? '<strong>x</strong>' : '&nbsp;'} ) 1</span> &nbsp;&nbsp; 
+                <span class="clickable-score ${cl.risco == 2 ? 'selected' : ''}" onclick="app.setClassification('risco', 2)" title="Nível 2">( ${cl.risco == 2 ? '<strong>x</strong>' : '&nbsp;'} ) 2</span> &nbsp;&nbsp; 
+                <span class="clickable-score ${cl.risco == 3 ? 'selected' : ''}" onclick="app.setClassification('risco', 3)" title="Nível 3">( ${cl.risco == 3 ? '<strong>x</strong>' : '&nbsp;'} ) 3</span>
+              </div>
+              <div class="score-row">Distância &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 
+                <span class="clickable-score ${cl.distancia == 1 ? 'selected' : ''}" onclick="app.setClassification('distancia', 1)" title="Nível 1">( ${cl.distancia == 1 ? '<strong>x</strong>' : '&nbsp;'} ) 1</span> &nbsp;&nbsp; 
+                <span class="clickable-score ${cl.distancia == 2 ? 'selected' : ''}" onclick="app.setClassification('distancia', 2)" title="Nível 2">( ${cl.distancia == 2 ? '<strong>x</strong>' : '&nbsp;'} ) 2</span> &nbsp;&nbsp; 
+                <span class="clickable-score ${cl.distancia == 3 ? 'selected' : ''}" onclick="app.setClassification('distancia', 3)" title="Nível 3">( ${cl.distancia == 3 ? '<strong>x</strong>' : '&nbsp;'} ) 3</span>
+              </div>
+              <div class="score-row">Dificuldade de acesso 
+                <span class="clickable-score ${cl.dificuldadeAcesso == 1 ? 'selected' : ''}" onclick="app.setClassification('dificuldadeAcesso', 1)" title="Nível 1">( ${cl.dificuldadeAcesso == 1 ? '<strong>x</strong>' : '&nbsp;'} ) 1</span> &nbsp;&nbsp; 
+                <span class="clickable-score ${cl.dificuldadeAcesso == 2 ? 'selected' : ''}" onclick="app.setClassification('dificuldadeAcesso', 2)" title="Nível 2">( ${cl.dificuldadeAcesso == 2 ? '<strong>x</strong>' : '&nbsp;'} ) 2</span> &nbsp;&nbsp; 
+                <span class="clickable-score ${cl.dificuldadeAcesso == 3 ? 'selected' : ''}" onclick="app.setClassification('dificuldadeAcesso', 3)" title="Nível 3">( ${cl.dificuldadeAcesso == 3 ? '<strong>x</strong>' : '&nbsp;'} ) 3</span>
+              </div>
+              <div class="score-row">Situação em local de risco social elevado 
+                <span class="clickable-score ${cl.riscoSocial == 1 ? 'selected' : ''}" onclick="app.setClassification('riscoSocial', 1)" title="Nível 1">( ${cl.riscoSocial == 1 ? '<strong>x</strong>' : '&nbsp;'} ) 1</span> &nbsp;&nbsp; 
+                <span class="clickable-score ${cl.riscoSocial == 2 ? 'selected' : ''}" onclick="app.setClassification('riscoSocial', 2)" title="Nível 2">( ${cl.riscoSocial == 2 ? '<strong>x</strong>' : '&nbsp;'} ) 2</span> &nbsp;&nbsp; 
+                <span class="clickable-score ${cl.riscoSocial == 3 ? 'selected' : ''}" onclick="app.setClassification('riscoSocial', 3)" title="Nível 3">( ${cl.riscoSocial == 3 ? '<strong>x</strong>' : '&nbsp;'} ) 3</span>
+              </div>
             </div>
 
             <div style="margin-top:10px; font-size:9.5pt; line-height:1.4;">
               <p style="margin:2px 0;"><strong>Pericial Social</strong></p>
-              <p style="margin:2px 0;">Local: <span contenteditable="true" class="editable-field" data-path="encerramento.municipio">${enc.municipio ? (enc.municipio.startsWith('município') ? enc.municipio : 'município de ' + enc.municipio + '/AP') : 'município de Mazagão/AP'}</span></p>
-              <p style="margin:2px 0;">Data da perícia in loco: <span contenteditable="true" class="editable-field" data-path="encerramento.dataPericia">${enc.dataPericia || '05 de setembro de 2026.'}</span></p>
-              <p style="margin:2px 0;">Hora da perícia in loco: <span contenteditable="true" class="editable-field" data-path="encerramento.horaPericia">${enc.horaPericia || '08:00 h.'}</span></p>
+              <p style="margin:2px 0;">Local: <span contenteditable="true" class="editable-field" data-path="encerramento.municipio">${enc.municipio ? (enc.municipio.toLowerCase().includes('município') ? enc.municipio : 'município de ' + enc.municipio + (enc.uf ? '/' + enc.uf : '')) : ''}</span></p>
+              <p style="margin:2px 0;">Data da perícia in loco: <span contenteditable="true" class="editable-field" data-path="encerramento.dataPericia">${enc.dataPericia || ''}</span></p>
+              <p style="margin:2px 0;">Hora da perícia in loco: <span contenteditable="true" class="editable-field" data-path="encerramento.horaPericia">${enc.horaPericia || ''}</span></p>
             </div>
 
             <div class="perita-full-signature" style="margin-top:16px;">
@@ -983,12 +1131,19 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
       </div>
     `;
 
-    // Vincula inputs com two-way data binding
+    // Vincula inputs com two-way data binding imediato (input + blur)
     this.a4Content.querySelectorAll("[contenteditable='true'][data-path]").forEach(el => {
+      el.addEventListener("input", (e) => {
+        const path = e.target.getAttribute("data-path");
+        const val = e.target.innerText.trim();
+        this.updateNestedValue(this.formData, path, val);
+        this.notifyChange("Digitando...");
+      });
       el.addEventListener("blur", (e) => {
         const path = e.target.getAttribute("data-path");
         const val = e.target.innerText.trim();
         this.updateNestedValue(this.formData, path, val);
+        this.notifyChange("Em sincronia");
       });
     });
   }
@@ -1008,17 +1163,34 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
     curr[keys[keys.length - 1]] = value;
   }
 
-  updateFamilyMember(index, field, value) {
-    if (this.formData.familia[index]) {
+  updateFamilyMember(index, field, value, shouldReRender = false) {
+    if (this.formData.familia && this.formData.familia[index]) {
       this.formData.familia[index][field] = value;
       const calc = calcularRendaPerCapita(this.formData.familia);
       this.formData.rendaTotalFamilia = calc.rendaTotal;
       this.formData.rendaPerCapita = calc.rendaPerCapita;
+      this.notifyChange("Família atualizada");
+      if (shouldReRender) {
+        this.renderFormPreview();
+      }
+    }
+  }
+
+  removeFamilyMember(index) {
+    if (this.formData.familia && this.formData.familia.length > 0) {
+      this.formData.familia.splice(index, 1);
+      const calc = calcularRendaPerCapita(this.formData.familia);
+      this.formData.rendaTotalFamilia = calc.rendaTotal;
+      this.formData.rendaPerCapita = calc.rendaPerCapita;
       this.renderFormPreview();
+      this.notifyChange("Membro familiar removido");
     }
   }
 
   addFamilyMember() {
+    if (!Array.isArray(this.formData.familia)) {
+      this.formData.familia = [];
+    }
     this.formData.familia.push({
       nome: "",
       parentesco: "Familiar",
@@ -1028,7 +1200,122 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
       rendaMensal: 0,
       tipoRenda: "Declarada"
     });
+    const calc = calcularRendaPerCapita(this.formData.familia);
+    this.formData.rendaTotalFamilia = calc.rendaTotal;
+    this.formData.rendaPerCapita = calc.rendaPerCapita;
     this.renderFormPreview();
+    this.notifyChange("Membro familiar adicionado");
+  }
+
+  setClassification(field, value) {
+    if (!this.formData.classificacao) this.formData.classificacao = {};
+    this.formData.classificacao[field] = value;
+    this.renderFormPreview();
+    this.notifyChange("Classificação atualizada");
+  }
+
+  toggleParecer() {
+    if (!this.formData.conclusao) this.formData.conclusao = {};
+    this.formData.conclusao.parecerFavoravel = !this.formData.conclusao.parecerFavoravel;
+    this.renderFormPreview();
+    this.notifyChange("Parecer atualizado");
+  }
+
+  // =====================================================================
+  // CONTROLES DE ZOOM E NAVEGAÇÃO DA FOLHA A4
+  // =====================================================================
+  setZoom(level) {
+    this.currentZoom = Math.min(1.6, Math.max(0.4, Math.round(level * 100) / 100));
+    if (this.a4Content) {
+      this.a4Content.style.zoom = this.currentZoom;
+      this.a4Content.style.setProperty("--doc-zoom", this.currentZoom);
+    }
+    if (this.zoomLevelText) {
+      this.zoomLevelText.innerText = `${Math.round(this.currentZoom * 100)}%`;
+    }
+  }
+
+  zoomIn() {
+    this.setZoom(this.currentZoom + 0.1);
+  }
+
+  zoomOut() {
+    this.setZoom(this.currentZoom - 0.1);
+  }
+
+  resetZoom() {
+    this.setZoom(1.0);
+  }
+
+  fitToWidth() {
+    if (!this.docScrollViewport) return;
+    const availableWidth = this.docScrollViewport.clientWidth - 48;
+    const pageWidthPx = 830;
+    const fitLevel = Math.min(1.3, Math.max(0.45, availableWidth / pageWidthPx));
+    this.setZoom(fitLevel);
+  }
+
+  scrollToPage(pageNum) {
+    const pageEl = document.getElementById(`page-${pageNum}`);
+    if (pageEl) {
+      pageEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      this.updateActivePageChip(pageNum);
+    }
+  }
+
+  updateActivePageChip(pageNum) {
+    const chips = document.querySelectorAll(".btn-page-chip");
+    chips.forEach(chip => {
+      const p = parseInt(chip.getAttribute("data-page"), 10);
+      if (p === pageNum) {
+        chip.classList.add("active");
+      } else {
+        chip.classList.remove("active");
+      }
+    });
+  }
+
+  initScrollSpy() {
+    if (!this.docScrollViewport) return;
+    this.docScrollViewport.addEventListener("scroll", () => {
+      const pages = this.docScrollViewport.querySelectorAll(".official-page");
+      const viewportTop = this.docScrollViewport.scrollTop + 120;
+      let activePage = 1;
+      pages.forEach((page, idx) => {
+        if (page.offsetTop <= viewportTop) {
+          activePage = idx + 1;
+        }
+      });
+      this.updateActivePageChip(activePage);
+    }, { passive: true });
+  }
+
+  notifyChange(label = "Em sincronia") {
+    if (this.docSyncIndicator) {
+      this.docSyncIndicator.className = "status-indicator saving";
+      if (this.docSyncText) this.docSyncText.innerText = "Salvando...";
+      clearTimeout(this._saveTimeout);
+      this._saveTimeout = setTimeout(() => {
+        if (this.docSyncIndicator) this.docSyncIndicator.className = "status-indicator synced";
+        if (this.docSyncText) this.docSyncText.innerText = label;
+      }, 400);
+    }
+  }
+
+  flashDocumentUpdate() {
+    if (this.docSyncIndicator) {
+      this.docSyncIndicator.className = "status-indicator updated";
+      if (this.docSyncText) this.docSyncText.innerText = "✨ Dados Atualizados";
+      setTimeout(() => {
+        if (this.docSyncIndicator) this.docSyncIndicator.className = "status-indicator synced";
+        if (this.docSyncText) this.docSyncText.innerText = "Em sincronia";
+      }, 2500);
+    }
+    if (this.a4Content) {
+      this.a4Content.classList.remove("doc-flash-highlight");
+      void this.a4Content.offsetWidth;
+      this.a4Content.classList.add("doc-flash-highlight");
+    }
   }
 
   // =====================================================================

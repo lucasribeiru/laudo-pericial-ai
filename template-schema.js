@@ -54,73 +54,75 @@ const DEFAULT_FORM_DATA = {
   carteiraAssinadaQtd: 0,
   rendaTotalFamilia: 0,
   rendaPerCapita: 0,
-  rendaObservacao: "Conforme CAD ÚNICO em anexo, a família possui renda per capita inferior a 1/4 do salário mínimo.",
+  rendaObservacao: "",
 
   // 4. Situação de Moradia
   moradia: {
     tipo: "Casa", // Casa, Apartamento, Abrigo/Asilo, Outro
     tipoOutro: "",
-    construcao: "alvenaria", // alvenaria, madeira, mista
-    cobertura: "telha de amianto", // telha de amianto, telha de barro, zinco
-    comodos: 3,
+    construcao: "", // alvenaria, madeira, mista
+    cobertura: "", // telha de amianto, telha de barro, zinco
+    comodos: "",
     comodosDescricao: "",
-    zona: "urbana", // urbana, rural
-    acesso: "difícil", // fácil, difícil
-    tempoResidencia: "5 anos",
-    regimeImovel: "Cedido", // Próprio, Alugado, Cedido/De terceiro
-    proprietarioImovel: "familiar",
+    zona: "", // urbana, rural
+    acesso: "", // fácil, difícil
+    tempoResidencia: "",
+    regimeImovel: "", // Próprio, Alugado, Cedido/De terceiro
+    proprietarioImovel: "",
     caraterResidencia: "Habitual", // Habitual, Temporária
 
     // Infraestrutura
-    agua: "Rede Pública", // Tratada/Rede Pública, Poço, Outro
-    esgoto: "Fossa", // Rede Pública, Fossa, Céu aberto
-    energia: "Regular", // Regular, Instável/Gato
-    rua: "Terra/Dificuldade de tráfego em chuvas", // Pavimentada, Terra/Dificuldade de tráfego em chuvas
-    piso: "Lajota cerâmica simples / cimento", // Piso identificado nas fotos
+    agua: "",
+    esgoto: "",
+    energia: "",
+    rua: "",
+    piso: "",
 
     // Bens
     bensTextoPadrao: "O conjunto de bens descritos a seguir demonstra itens básicos de sobrevivência, não indicando padrão incompatível com situação de vulnerabilidade econômica. Nenhum bem de alto valor comercial foi encontrado.",
-    bensListagem: "fogão simples de 4 bocas, geladeira antiga, 2 camas de casal, 1 ventilador e 1 aparelho de TV de tubo."
+    bensListagem: ""
   },
 
   // 5. Despesas Mensais Gerais
   despesas: {
     habitacao: 0,
-    habitacaoObs: "Não possui gasto direto com aluguel pois reside em imóvel cedido, porém há custos de conservação e manutenção básica.",
-    energia: 120.00,
-    energiaObs: "Conta média residencial.",
-    agua: 45.00,
-    aguaObs: "Tarifa social básica.",
-    alimentacao: 450.00,
-    alimentacaoObs: "Valor abaixo do mínimo nutricional recomendado, indicando risco de insegurança alimentar severa.",
-    transporte: 100.00,
-    transporteObs: "Família necessita de transporte extraordinário para consultas médicas especializadas.",
-    saude: 200.00,
-    saudeObs: "Tratamento pelo SUS. O deslocamento até os centros de referência é financeiramente inviável com a renda atual e a irregularidade no acompanhamento compromete a evolução do quadro de saúde."
+    habitacaoObs: "",
+    energia: 0,
+    energiaObs: "",
+    agua: 0,
+    aguaObs: "",
+    alimentacao: 0,
+    alimentacaoObs: "",
+    transporte: 0,
+    transporteObs: "",
+    saude: 0,
+    saudeObs: ""
   },
 
   // 6. Conclusão e Parecer Técnico
   conclusao: {
     dataVisita: "",
     nomeEntrevistado: "",
-    fonteRendaDescricao: "Transferência de renda (Programa Bolsa Família) e eventuais bicos informais esporádicos",
-    rendaTotalExtenso: "insuficiente para prover as necessidades básicas alimentares, de higiene, tratamento de saúde e transporte especializado",
+    fonteRendaDescricao: "",
+    rendaTotalExtenso: "",
     vulnerabilidadeEconomicaSevera: true,
     necessidadeTratamentoContinuo: true,
     naoDispoeMeiosProprios: true,
     rendaAtendeCriterioLoas: true,
     parecerFavoravel: true, // true = POSSUI amparo, false = NÃO POSSUI
-    textoParecerComplementar: "Assim, o(a) requerente POSSUI amparo legal e social para a concessão do Benefício de Prestação Continuada - BPC (art. 20 da Lei 8.742/93)."
+    textoEstudoSocial: "",
+    textoDificuldades: "",
+    textoParecerComplementar: ""
   },
 
   // 7. Classificação da Perícia
   classificacao: {
-    complexidade: 2, // 1 a 3
-    risco: 2,
-    distancia: 2,
-    dificuldadeAcesso: 3,
-    riscoSocial: 3,
-    justificativa: "Grau 3 em dificuldade e risco social, porque o endereço do requerente está localizado em área periférica/ressaca, distante do centro urbano, com vias sem pavimentação e carência severa de transporte público e saneamento."
+    complexidade: 1, // 1 a 3
+    risco: 1,
+    distancia: 1,
+    dificuldadeAcesso: 1,
+    riscoSocial: 1,
+    justificativa: ""
   },
 
   // 8. Encerramento
@@ -128,9 +130,10 @@ const DEFAULT_FORM_DATA = {
     municipio: "Macapá",
     uf: "AP",
     dataPericia: "",
-    horaPericia: "14:30 h",
+    horaPericia: "",
     nomePerito: "Assistente Social Perito(a) Judicial",
-    cress: "CRESS/AP nº 0000"
+    cargoPerito: "Doutora em Serviço Social",
+    cress: "CRESS 104 24ª Região-AP"
   }
 };
 
