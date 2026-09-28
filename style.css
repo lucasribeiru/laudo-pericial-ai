@@ -1227,11 +1227,18 @@ body {
 }
 
 /* =====================================================================
-   ESTILOS DE IMPRESSÃO (EXCLUSIVO PARA GERAÇÃO PDF)
+   ESTILOS DE IMPRESSÃO (EXCLUSIVO PARA GERAÇÃO PDF E IMPRESSÃO OFICIAL)
    ===================================================================== */
 @media print {
-  body {
-    background: transparent !important;
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+  
+  html, body {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
     height: auto !important;
     overflow: visible !important;
   }
@@ -1241,27 +1248,36 @@ body {
   .doc-toolbar,
   .quick-cases-bar,
   .btn-add-row,
-  .modal-overlay {
+  .modal-overlay,
+  .staged-files-bar {
     display: none !important;
   }
   
-  .main-container {
+  .main-container,
+  .document-pane,
+  .doc-scroll-viewport,
+  .pages-wrapper {
+    display: block !important;
     height: auto !important;
-  }
-  
-  .document-pane {
     overflow: visible !important;
-  }
-  
-  .doc-scroll-viewport {
     padding: 0 !important;
-    background: transparent !important;
+    margin: 0 !important;
+    background: #ffffff !important;
   }
   
-  .a4-sheet {
-    box-shadow: none !important;
-    padding: 15mm 20mm !important;
-    width: 100% !important;
+  .official-page {
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    max-height: 297mm !important;
+    box-sizing: border-box !important;
     margin: 0 !important;
+    padding: 14mm 20mm 14mm 22mm !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    overflow: hidden !important;
   }
 }
+

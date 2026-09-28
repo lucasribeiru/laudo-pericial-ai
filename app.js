@@ -892,33 +892,35 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
               Este estudo social foi elaborado após visita domiciliar “In Lócus” no dia 07 de setembro de 2026, após informações fornecidas pela genitora do requerente Srª Emilly Gleyda Mota Paixão. A qual informou que o infante não possui no momento nenhum tipo de renda própria. A prole possui duas fontes, uma provida pelo programa social do Bolsa Família no valor de R$ 600,00 (Seiscentos reais) e outra provida pela atividade laboral do genitor na função de autônomo na atividade auxiliar de serviços gerais que desenvolve renda está não fixa de aproximadamente R$ 400,00, a qual é insuficiente para prover todas as necessidades básicas que o infante precisa.
             </div>
 
-            <div contenteditable="true" class="editable-field-block judicial-paragraph" data-path="conclusao.textoDificuldades" style="margin-top:10px;">
+            <div contenteditable="true" class="editable-field-block judicial-paragraph" data-path="conclusao.textoDificuldades" style="margin-top:6px;">
               Ressaltou que possuem muita dificuldade para realizar o tratamento de saúde, pois, na vila onde residem não tem este tipo de tratamento de saúde e não possuem recursos financeiros para se deslocarem até a capital (Macapá) com a frequência necessária que o tratamento requer. Portanto, é fulcral adquiri-lo, pois, o mesmo irá contribuir para custear o transporte até os equipamentos sociais onde realizam às terapias multidisciplinar, ou seja, na capital, as quais são fulcrais para evolução da saúde e qualidade de vida.
             </div>
 
-            <div class="judicial-paragraph" style="margin-top:12px;">
+            <div class="judicial-paragraph" style="margin-top:6px;">
               Portanto, analisando o que preconiza a Fundamentação Legal: a elegibilidade do infante encontra amparo nos seguintes dispositivos:
             </div>
 
-            <div class="judicial-paragraph" style="font-weight:bold; margin-top:8px;">Lei Orgânica da Assistência Social -LOAS – Lei 8.742/93</div>
-            <div class="judicial-paragraph" style="padding-left:14px; margin-top:2px;">
+            <div class="judicial-paragraph" style="font-weight:bold; margin-top:5px;">Lei Orgânica da Assistência Social - LOAS – Lei 8.742/93</div>
+            <div class="judicial-paragraph" style="padding-left:14px; margin-top:1px;">
               Art. 1º – Direito do cidadão e dever do Estado.<br>
               Art. 2º, inciso V – Garantia de um salário-mínimo à pessoa com deficiência.<br>
               Art. 20 – Critérios socioeconômicos (renda per capita inferior a ¼ do salário-mínimo).
             </div>
 
-            <div class="judicial-paragraph" style="font-weight:bold; margin-top:8px;">Estatuto da Criança e do Adolescente – ECA, lei nº 8.069/90</div>
-            <div class="judicial-paragraph" style="padding-left:14px; margin-top:2px;">
+            <div class="judicial-paragraph" style="font-weight:bold; margin-top:5px;">Estatuto da Criança e do Adolescente – ECA, lei nº 8.069/90</div>
+            <div class="judicial-paragraph" style="padding-left:14px; margin-top:1px;">
               Art. 7º – Garantia de condições dignas de vida e acesso à saúde.<br>
               Art. 4º – Prioridade absoluta no atendimento de crianças.
             </div>
 
-            <div class="judicial-paragraph" style="font-weight:bold; margin-top:8px;">Normas Técnicas da Assistência Social</div>
-            <div class="judicial-paragraph" style="padding-left:14px; margin-top:2px;">
+            <div class="judicial-paragraph" style="font-weight:bold; margin-top:5px;">Normas Técnicas da Assistência Social</div>
+            <div class="judicial-paragraph" style="padding-left:14px; margin-top:1px;">
               Proteção integral.<br>
               Avaliação por múltiplos critérios.<br>
               Reconhecimento da deficiência e impedimentos de longo prazo.
             </div>
+
+            ${rubricaHtml}
           </div>
           ${footerHtml(5)}
         </div>
@@ -927,7 +929,7 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
         <div class="official-page" id="page-6">
           ${headerHtml}
           <div class="page-content-body">
-            <div class="judicial-paragraph">
+            <div class="judicial-paragraph" style="margin-top:4px;">
               Após criteriosa análise técnica, fundamentada em visita domiciliar, entrevista, documentação anexa e legislação vigente, conclui-se que:
             </div>
 
@@ -936,25 +938,25 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
               Possui necessidade comprovada de tratamento contínuo, cuja manutenção depende de recursos .
             </div>
 
-            <ul style="margin: 6px 0 10px 22px; padding:0; line-height:1.36; text-align:justify;">
+            <ul style="margin: 4px 0 8px 22px; padding:0; line-height:1.35; text-align:justify;">
               <li>A família não dispõe de meios próprios para prover sua subsistência digna.</li>
               <li>A renda per capita atende ao critério objetivo da LOAS.</li>
               <li>O ambiente social, familiar e territorial agrava a vulnerabilidade e aumenta o risco social.</li>
             </ul>
 
-            <div class="judicial-paragraph" style="margin-top:8px;">
+            <div class="judicial-paragraph" style="margin-top:6px;">
               Assim, o requerente possui amparo legal e social para a concessão do Benefício de Prestação–Continuada BPC.
             </div>
 
-            <div class="judicial-paragraph" style="font-weight:bold; margin-top:12px;">
+            <div class="judicial-paragraph" style="font-weight:bold; margin-top:10px;">
               Fundamentadamente, se for o caso, classifique a perícia de 1 a 3 de acordo com o grau crescente de complexidade, risco, distância e dificuldade de acesso ao local da perícia, O local da Perícia Social apresenta risco e dificuldade de acesso com grau 3, está situada em local de risco social elevado.
             </div>
 
-            <div class="judicial-paragraph" style="margin-top:6px;">
+            <div class="judicial-paragraph" style="margin-top:4px;">
               <strong>RESPOSTA:</strong> <span contenteditable="true" class="editable-field" data-path="classificacao.justificativa">${cl.justificativa || 'Grau 3, porque o endereço do requerente está localizado em área rural no Município de Mazagão distantes de Macapá aproximadamente 32 Km, indo pela BR Jucelino Kubitschek, em média são 1h e meia de viagem, porém, tendo que percorrer total de 64 km (ida e volta) por conseguinte, a maior dificuldade foi distância e o acesso ao celular que costuma ficar desconectado, ou seja, não funciona bem a internet naquela localidade.'}</span>
             </div>
 
-            <div style="margin-top:10px; font-size:9.5pt; line-height:1.55;">
+            <div style="margin-top:8px; font-size:9.5pt; line-height:1.45;">
               <div>Complexidade &nbsp;&nbsp;&nbsp;&nbsp; ( &nbsp; ) 1 &nbsp;&nbsp; ( &nbsp; ) 2 &nbsp;&nbsp; ( <strong>x</strong> ) 3</div>
               <div>Risco &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ( &nbsp; ) 1 &nbsp;&nbsp; ( &nbsp; ) 2 &nbsp;&nbsp; ( <strong>x</strong> ) 3</div>
               <div>Distância &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ( &nbsp; ) 1 &nbsp;&nbsp; ( &nbsp; ) 2 &nbsp;&nbsp; ( <strong>x</strong> ) 3</div>
@@ -962,18 +964,18 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
               <div>Situação em local de risco social elevado ( &nbsp; ) 1 &nbsp;&nbsp; ( &nbsp; ) 2 &nbsp;&nbsp; ( <strong>x</strong> ) 3</div>
             </div>
 
-            <div style="margin-top:12px; font-size:9.5pt;">
+            <div style="margin-top:10px; font-size:9.5pt; line-height:1.4;">
               <p style="margin:2px 0;"><strong>Pericial Social</strong></p>
               <p style="margin:2px 0;">Local: <span contenteditable="true" class="editable-field" data-path="encerramento.municipio">${enc.municipio ? (enc.municipio.startsWith('município') ? enc.municipio : 'município de ' + enc.municipio + '/AP') : 'município de Mazagão/AP'}</span></p>
               <p style="margin:2px 0;">Data da perícia in loco: <span contenteditable="true" class="editable-field" data-path="encerramento.dataPericia">${enc.dataPericia || '05 de setembro de 2026.'}</span></p>
-              <p style="margin:2px 0;">Hora da perícia in loco: <span contenteditable="true" class="editable-field" data-path="encerramento.horaPericia">${enc.horaPericia || '08: 00 h.'}</span></p>
+              <p style="margin:2px 0;">Hora da perícia in loco: <span contenteditable="true" class="editable-field" data-path="encerramento.horaPericia">${enc.horaPericia || '08:00 h.'}</span></p>
             </div>
 
-            <div class="perita-full-signature">
-              <div class="sig-line"></div>
-              <div class="sig-name">${enc.nomePerito || 'Ivonete Ferreira Maciel'}</div>
-              <div class="sig-role">${enc.cargoPerito || 'Doutora em Serviço Social'}</div>
-              <div class="sig-role">${enc.cress || 'CRESS 104 24ª Região-AP'}</div>
+            <div class="perita-full-signature" style="margin-top:16px;">
+              <div class="sig-line" style="width:280px; height:1px; background:#000; margin:0 auto 4px;"></div>
+              <div class="sig-name" style="font-weight:bold; font-size:10pt;">${enc.nomePerito || 'Ivonete Ferreira Maciel'}</div>
+              <div class="sig-role" style="font-size:9pt; color:#222;">${enc.cargoPerito || 'Doutora em Serviço Social'}</div>
+              <div class="sig-role" style="font-size:9pt; color:#222;">${enc.cress || 'CRESS 104 24ª Região-AP'}</div>
             </div>
           </div>
           ${footerHtml(6)}
@@ -1030,11 +1032,11 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
   }
 
   // =====================================================================
-  // EXPORTAÇÃO PARA WORD (.DOCX / .DOC)
+  // EXPORTAÇÃO PARA WORD (.DOCX)
   // =====================================================================
   async exportToWord() {
     const buttons = [this.btnDownloadDocx, this.btnDownloadDocxTop].filter(Boolean);
-    const originals = buttons.map(b => b.innerHTML);
+    const defaultWordHtml = '<span>📥</span><span>Baixar Word (.docx)</span>';
     buttons.forEach(b => {
       b.innerHTML = `<span>⏳ Baixando Word...</span>`;
       b.disabled = true;
@@ -1055,24 +1057,25 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
       console.error("Erro na exportação Word:", err);
       alert("Erro ao baixar o arquivo Word: " + err.message);
     } finally {
-      buttons.forEach((b, i) => {
-        b.innerHTML = originals[i];
+      buttons.forEach(b => {
+        b.innerHTML = defaultWordHtml;
         b.disabled = false;
       });
     }
   }
 
   // =====================================================================
-  // EXPORTAÇÃO PARA PDF (.PDF) - 6 PÁGINAS OFICIAIS SEM CORTE
+  // EXPORTAÇÃO PARA PDF (.PDF) - 6 PÁGINAS OFICIAIS SEM CORTE NEM DESLOCAMENTO
   // =====================================================================
   async exportToPdf() {
     const buttons = [this.btnDownloadPdf, this.btnDownloadPdfTop].filter(Boolean);
-    const originals = buttons.map(b => b.innerHTML);
+    const defaultPdfHtml = '<span>📄</span><span>Baixar PDF</span>';
     buttons.forEach(b => {
-      b.innerHTML = `<span>⏳ Baixando PDF...</span>`;
+      b.innerHTML = `<span>⏳ Gerando PDF...</span>`;
       b.disabled = true;
     });
 
+    let staging = null;
     try {
       const safeName = (this.formData.identificacao.periciado || "Periciado")
         .replace(/[^a-zA-Z0-9]/g, "_");
@@ -1088,6 +1091,12 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
         window.print();
         return;
       }
+
+      // Cria container de staging temporário posicionado exatamente em (0,0) sem interferência de viewport
+      staging = document.createElement('div');
+      staging.id = 'pdf-render-staging';
+      staging.style.cssText = 'position:fixed!important;left:0!important;top:0!important;width:794px!important;height:1123px!important;margin:0!important;padding:0!important;z-index:-9999!important;background:#ffffff!important;overflow:hidden!important;pointer-events:none!important;opacity:1!important;';
+      document.body.appendChild(staging);
 
       const pdf = new jsPdfClass({
         orientation: 'portrait',
@@ -1106,31 +1115,55 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
           pdf.addPage('a4', 'portrait');
         }
 
-        const canvas = await html2canvas(pageEl, {
+        // Clona a página dentro do container perfeitamente posicionado em (0, 0)
+        staging.innerHTML = '';
+        const clone = pageEl.cloneNode(true);
+        clone.style.cssText = 'width:794px!important;height:1123px!important;min-height:1123px!important;max-height:1123px!important;box-sizing:border-box!important;margin:0!important;padding:14mm 20mm 14mm 22mm!important;box-shadow:none!important;border-radius:0!important;position:absolute!important;left:0!important;top:0!important;background:#ffffff!important;overflow:hidden!important;display:flex!important;flex-direction:column!important;';
+        staging.appendChild(clone);
+
+        // Breve pausa para o layout e fontes renderizarem
+        await new Promise(r => setTimeout(r, 60));
+
+        const canvas = await window.html2canvas(clone, {
           scale: 2,
-          useCORS: true,
+          useCORS: false,
           logging: false,
           backgroundColor: '#ffffff',
-          windowWidth: 794
+          width: 794,
+          height: 1123,
+          windowWidth: 794,
+          windowHeight: 1123,
+          x: 0,
+          y: 0,
+          scrollX: 0,
+          scrollY: 0
         });
 
         const imgData = canvas.toDataURL('image/jpeg', 0.98);
         pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
       }
 
+      if (staging) {
+        staging.remove();
+        staging = null;
+      }
+
       pdf.save(filename);
 
-      this.addAssistantMessage(`📄 Seu arquivo PDF **${filename}** foi gerado com sucesso em 6 páginas oficiais idênticas ao modelo da Justiça Federal! Todas as 6 folhas contam com cabeçalho oficial, rodapé numerado, formatação alinhada e texto 100% justificado.`);
+      this.addAssistantMessage(`📄 Seu arquivo PDF **${filename}** foi gerado com sucesso em 6 páginas oficiais idênticas ao modelo da Justiça Federal! Todas as 6 folhas estão perfeitamente ajustadas, sem qualquer deslocamento ou corte na assinatura.`);
     } catch (err) {
       console.error("Erro na exportação PDF:", err);
+      if (staging) staging.remove();
       window.print();
     } finally {
-      buttons.forEach((b, i) => {
-        b.innerHTML = originals[i];
+      if (staging) staging.remove();
+      buttons.forEach(b => {
+        b.innerHTML = defaultPdfHtml;
         b.disabled = false;
       });
     }
   }
+
 
   // =====================================================================
   // TEMAS E MODAL DE CONFIGURAÇÃO

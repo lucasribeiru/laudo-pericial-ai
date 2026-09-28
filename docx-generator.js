@@ -21,13 +21,18 @@ class PericiaDocxGenerator {
   }
 
   /**
-   * Disparo seguro de download de Blob no navegador
+   * Disparo seguro de download de Blob no navegador com MIME type oficial .docx
    */
   triggerBlobDownload(blob, filename) {
+    const mimeType = filename.endsWith(".docx")
+      ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      : "application/msword";
+    const safeBlob = new Blob([blob], { type: mimeType });
+
     if (window.saveAs) {
-      window.saveAs(blob, filename);
+      window.saveAs(safeBlob, filename);
     } else {
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(safeBlob);
       const a = document.createElement("a");
       a.style.display = "none";
       a.href = url;
@@ -42,23 +47,18 @@ class PericiaDocxGenerator {
   }
 
   /**
-   * Gera o arquivo Word (.docx oficial com fallback garantido para .doc formatado)
+   * Gera o arquivo Word (.docx oficial padrão OpenXML)
    */
   async downloadDocx(filename = "Pericia_Socioeconomica.docx") {
-    // Tentativa 1: Biblioteca docx.js (Gera .docx binário padrão OpenXML)
-    if (this.docx && this.docx.Document && this.docx.Packer) {
-      try {
-        const doc = this.buildDocument();
-        const blob = await this.docx.Packer.toBlob(doc);
-        this.triggerBlobDownload(blob, filename);
-        return true;
-      } catch (err) {
-        console.warn("docx.js buildDocument falhou, acionando fallback nativo do Word:", err);
-      }
+    const docxLib = this.docx || window.docx || (typeof docx !== "undefined" ? docx : null);
+    if (docxLib && docxLib.Document && docxLib.Packer) {
+      this.docx = docxLib;
+      const doc = this.buildDocument();
+      const blob = await this.docx.Packer.toBlob(doc);
+      this.triggerBlobDownload(blob, filename);
+      return true;
     }
-
-    // Tentativa 2 (Garantia 100% de download): Word HTML/XML nativo aberto perfeitamente pelo Microsoft Word
-    return this.downloadWordHtmlFallback(filename.replace(/\.docx$/i, ".doc"));
+    throw new Error("Biblioteca docx.js não disponível.");
   }
 
   /**
