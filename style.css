@@ -2008,3 +2008,256 @@ body {
   }
 }
 
+/* =====================================================================
+   STATUS BADGES (IA AUTOMÁTICA E BANCO DE DADOS)
+   ===================================================================== */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  background: var(--bg-surface-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--color-border-neutral);
+}
+
+.status-badge.connected {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+  border-color: #6ee7b7;
+}
+
+.status-badge.offline {
+  background: rgba(239, 68, 68, 0.08);
+  color: #DC2626;
+  border-color: #fca5a5;
+}
+
+/* =====================================================================
+   PAINEL LATERAL DE PERÍCIAS SALVAS (BANCO DE DADOS)
+   ===================================================================== */
+.pericias-panel {
+  position: fixed;
+  top: 0;
+  right: -460px;
+  width: 440px;
+  max-width: 100vw;
+  height: 100vh;
+  z-index: 2000;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--color-border-neutral);
+  box-shadow: -8px 0 32px rgba(0,0,0,0.12);
+  display: flex;
+  flex-direction: column;
+  transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pericias-panel.open {
+  right: 0;
+}
+
+.pericias-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--color-border-neutral);
+  background: var(--bg-surface-elevated);
+}
+
+.pericias-panel-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.pericias-search {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border-neutral);
+}
+
+.pericias-search .form-control {
+  font-size: 0.88rem;
+  padding: 10px 14px;
+  border-radius: 10px;
+}
+
+.pericias-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+
+.pericias-empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-tertiary);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+/* Cartão individual de perícia salva */
+.pericia-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--color-border-neutral);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pericia-card:hover {
+  border-color: var(--color-cyan-primary);
+  background: rgba(2, 132, 199, 0.04);
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.1);
+  transform: translateY(-1px);
+}
+
+.pericia-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pericia-card-name {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--text-primary);
+  flex: 1;
+  line-height: 1.3;
+}
+
+.pericia-card-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.pericia-card-status.rascunho {
+  background: rgba(234, 179, 8, 0.15);
+  color: #a16207;
+}
+
+.pericia-card-status.concluido {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+}
+
+.pericia-card-status.enviado {
+  background: rgba(2, 132, 199, 0.15);
+  color: #0284C7;
+}
+
+.pericia-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.pericia-card-meta span {
+  white-space: nowrap;
+}
+
+.pericia-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.pericia-card-actions button {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border-neutral);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.pericia-card-actions button:hover {
+  background: var(--color-cyan-primary);
+  color: white;
+  border-color: var(--color-cyan-primary);
+}
+
+.pericia-card-actions button.btn-danger:hover {
+  background: #DC2626;
+  border-color: #DC2626;
+}
+
+/* Overlay quando painel de perícias está aberto */
+.pericias-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1999;
+  background: rgba(0,0,0,0.3);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s;
+}
+
+.pericias-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Toast de notificação */
+.toast-notification {
+  position: fixed;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--color-navy-judicial);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  z-index: 9999;
+  opacity: 0;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.toast-notification.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+@media (max-width: 960px) {
+  .pericias-panel {
+    width: 100vw;
+    right: -100vw;
+  }
+  
+  .status-badge {
+    font-size: 0.65rem;
+    padding: 3px 7px;
+  }
+}
+
+

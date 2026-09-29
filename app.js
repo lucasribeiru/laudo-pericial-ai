@@ -21,11 +21,18 @@ class PericiaApp {
     this.currentZoom = 1.0;
     this._saveTimeout = null;
 
+    // Banco de dados e IA Automática
+    this.currentPericiaId = null; // ID da perícia ativa no banco de dados
+    this.useServerAI = false;    // Se true, usa /api/extract ao invés de chamada direta
+    this._searchTimeout = null;
+
     this.initElements();
     this.initEventListeners();
     this.initScrollSpy();
     this.renderFormPreview();
     this.appendInitialGreeting();
+    this.initStatusBadges();
+    this.detectServerAI();
   }
 
   initElements() {
@@ -466,7 +473,13 @@ Com base neles, o **Visum Social** realiza a **inspeção visual minuciosa das i
     this.stagedFiles = [];
     this.renderStagedFiles();
 
-    if (this.apiKey) {
+    // PRIORIDADE DE IA:
+    // 1. Servidor automático (/api/extract) — chave no backend, sem configuração
+    // 2. Chave local do usuário (se configurada nas settings)
+    // 3. Extrator inteligente integrado (sem IA, regex + heurística)
+    if (this.useServerAI) {
+      await this.processWithServerAI(userText, files);
+    } else if (this.apiKey) {
       await this.processWithGeminiAPI(userText, files);
     } else {
       await this.processWithLocalExtractor(userText, files);
@@ -1775,9 +1788,362 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
       this.chatInput.focus();
     }
   }
+
+  // =====================================================================
+  // IA AUTOMÁTICA VIA SERVIDOR (SEM CONFIGURAÇÃO DO USUÁRIO)
+  // =====================================================================
+  async detectServerAI() {
+    try {
+      const res = await fetch("/api/extract", { method: "OPTIONS" });
+      if (res.ok || res.status === 200 || res.status === 204) {
+        this.useServerAI = true;
+        console.log("✅ IA Automática detectada no servidor (/api/extract).");
+      }
+    } catch {
+      this.useServerAI = false;
+      console.info("ℹ️ Servidor de IA não disponível. Usando chave local ou extrator inteligente.");
+    }
+    this.updateStatusBadges();
+  }
+
+  initStatusBadges() {
+    this.statusBadgeIA = document.getElementById("statusBadgeIA");
+    this.statusBadgeBD = document.getElementById("statusBadgeBD");
+
+    // Escuta o evento do Supabase
+    document.addEventListener("supabase-ready", () => {
+      this.updateStatusBadges();
+    });
+
+    // Atualiza após um pequeno delay para dar tempo do Supabase conectar
+    setTimeout(() => this.updateStatusBadges(), 2000);
+  }
+
+  updateStatusBadges() {
+    if (this.statusBadgeIA) {
+      if (this.useServerAI) {
+        this.statusBadgeIA.textContent = "🤖 IA Auto ✓";
+        this.statusBadgeIA.className = "status-badge connected";
+      } else if (this.apiKey) {
+        this.statusBadgeIA.textContent = "🔑 IA Chave Local";
+        this.statusBadgeIA.className = "status-badge connected";
+      } else {
+        this.statusBadgeIA.textContent = "🧠 IA Integrada";
+        this.statusBadgeIA.className = "status-badge";
+      }
+    }
+
+    if (this.statusBadgeBD) {
+      if (typeof db !== "undefined" && db.connected) {
+        this.statusBadgeBD.textContent = "☁️ BD Nuvem ✓";
+        this.statusBadgeBD.className = "status-badge connected";
+      } else {
+        this.statusBadgeBD.textContent = "💾 BD Local";
+        this.statusBadgeBD.className = "status-badge";
+      }
+    }
+  }
+
+  async processWithServerAI(userText, files) {
+    this.showTypingIndicator("Conectando à IA Automática (Gemini Flash)...");
+
+    try {
+      const contentsParts = [];
+
+      // Monta o system prompt (reutiliza o mesmo da API direta)
+      const systemPrompt = this._buildSystemPrompt();
+      contentsParts.push({ text: systemPrompt + "\n\nInstruções/Anotações adicionais do perito:\n" + userText });
+
+      // Anexa arquivos como inline_data
+      for (const f of files) {
+        let base64Data = f.base64;
+        if (!base64Data && f.fileRef) {
+          try {
+            base64Data = await this.readFileAsBase64(f.fileRef);
+          } catch (e) {
+            console.warn("Falha ao converter arquivo:", e);
+          }
+        }
+
+        if (base64Data) {
+          const mime = f.type || (f.name.endsWith(".pdf") ? "application/pdf" : "image/jpeg");
+          contentsParts.push({
+            inline_data: { mime_type: mime, data: base64Data }
+          });
+        } else if (f.extractedText) {
+          contentsParts.push({ text: `CONTEÚDO DO DOCUMENTO [${f.name}]:\n${f.extractedText}` });
+        }
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 55000);
+
+      const res = await fetch("/api/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          parts: contentsParts,
+          model: this.selectedModel
+        })
+      });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || errBody.detail || `Erro ${res.status}`);
+      }
+
+      const result = await res.json();
+
+      if (!result.success || !result.data) {
+        throw new Error(result.parseError || "A IA não retornou dados estruturados.");
+      }
+
+      const extractedJson = result.data;
+
+      // ISOLAMENTO TOTAL
+      const cleanForm = JSON.parse(JSON.stringify(DEFAULT_FORM_DATA));
+      this.deepMerge(cleanForm, extractedJson);
+      this.formData = cleanForm;
+
+      this.quickChips.forEach(c => c.classList.remove("active"));
+
+      const calc = calcularRendaPerCapita(this.formData.familia);
+      this.formData.rendaTotalFamilia = calc.rendaTotal;
+      this.formData.rendaPerCapita = calc.rendaPerCapita;
+
+      this.renderFormPreview();
+      this.flashDocumentUpdate();
+      this.scrollToPage(1);
+      this.hideTypingIndicator();
+
+      const m = this.formData.moradia || {};
+      this.addAssistantMessage(
+        `Analisei os arquivos via **IA Automática (${result.model})** — sem necessidade de chave de API!
+
+🏠 **Inspeção Visual:**
+- 🧱 **Construção:** ${m.construcao || "alvenaria"} (${m.comodos || "---"} cômodos)
+- 🏠 **Telhado:** ${m.cobertura || "Telha"} | **Piso:** ${m.piso || "Cimento"}
+- 🛋️ **Bens:** ${m.bensListagem || "Bens essenciais"}
+
+O formulário oficial foi preenchido automaticamente. Baixe em **Word** ou **PDF** a qualquer momento.`,
+        this.formData
+      );
+
+    } catch (err) {
+      console.error("Erro na IA automática:", err);
+      this.hideTypingIndicator();
+
+      // Se o servidor falha, tenta extração local como fallback
+      if (err.name === "AbortError") {
+        this.addAssistantMessage("⏳ A IA demorou demais. Processando com inteligência integrada...");
+      } else {
+        this.addAssistantMessage(`⚠️ IA automática indisponível: **${err.message}**. Processando localmente...`);
+      }
+      await this.processWithLocalExtractor(userText, files);
+    }
+  }
+
+  _buildSystemPrompt() {
+    return `Você é um Assistente Pericial Oficial especializado em Perícias Socioeconômicas da Justiça Federal (BPC/LOAS - Lei 8.742/93).
+Analise com rigor técnico todos os documentos, certidões, laudos médicos, extratos de CadÚnico e PRINCIPALMENTE AS FOTOS DA MORADIA/VISITA DOMICILIAR.
+
+REGRA ABSOLUTA DE ISOLAMENTO DE DADOS:
+NUNCA misture, reaproveite ou invente dados de casos de teste, modelos anteriores ou de pessoas fictícias.
+Se uma informação não for expressamente encontrada nos documentos e fotos fornecidos, retorne string vazia ("") ou 0 para números.
+
+INSTRUÇÃO OBRIGATÓRIA DE ANÁLISE VISUAL DE IMAGENS:
+Para cada foto do imóvel anexada:
+1. Verifique o tipo de rua/logradouro (terra batida, asfalto, lama).
+2. Verifique o tipo de construção (alvenaria, madeira, palafita, mista).
+3. Verifique a cobertura/telhado (amianto, barro, zinco).
+4. Verifique o piso (chão batido, cimento, cerâmica).
+5. Inventário de bens móveis visíveis, confirmando ausência de luxo.
+6. Avalie saneamento (banheiro interno/externo, fossa, rede pública).
+
+Retorne EXCLUSIVAMENTE um objeto JSON válido (sem markdown) com o schema do formulário judicial.`;
+  }
+
+  // =====================================================================
+  // BANCO DE DADOS — SALVAR, LISTAR, CARREGAR E EXCLUIR PERÍCIAS
+  // =====================================================================
+  async salvarPericiaAtual() {
+    const btn = document.getElementById("btnSalvarPericia");
+    if (btn) {
+      btn.innerHTML = "<span>⏳</span><span class='hide-mobile'>Salvando...</span>";
+      btn.disabled = true;
+    }
+
+    try {
+      if (typeof db === "undefined") throw new Error("Módulo de banco de dados não carregado.");
+
+      let result;
+      if (this.currentPericiaId) {
+        result = await db.atualizarPericia(this.currentPericiaId, this.formData);
+        this.showToast("✅ Perícia atualizada com sucesso!");
+      } else {
+        result = await db.salvarPericia(this.formData);
+        this.currentPericiaId = result.id;
+        this.showToast("✅ Perícia salva com sucesso!");
+      }
+
+      this.addAssistantMessage(`💾 Perícia **${this.formData.identificacao?.periciado || ""}** salva com sucesso no ${db.connected ? "banco de dados na nuvem" : "armazenamento local"}. ID: \`${result.id?.substring(0, 8) || "local"}\``);
+
+    } catch (err) {
+      console.error("Erro ao salvar:", err);
+      this.showToast("❌ Erro ao salvar: " + err.message);
+    } finally {
+      if (btn) {
+        btn.innerHTML = "<span>💾</span><span class='hide-mobile'>Salvar</span>";
+        btn.disabled = false;
+      }
+    }
+  }
+
+  async togglePericiasPanel() {
+    const panel = document.getElementById("periciasPanel");
+    if (!panel) return;
+
+    const isOpen = panel.classList.contains("open");
+
+    if (isOpen) {
+      panel.classList.remove("open");
+      const overlay = document.querySelector(".pericias-overlay");
+      if (overlay) overlay.remove();
+    } else {
+      panel.classList.add("open");
+
+      // Cria overlay
+      const overlay = document.createElement("div");
+      overlay.className = "pericias-overlay open";
+      overlay.addEventListener("click", () => this.togglePericiasPanel());
+      document.body.appendChild(overlay);
+
+      // Carrega lista
+      await this.renderPericiasList();
+    }
+  }
+
+  async renderPericiasList(items) {
+    const listEl = document.getElementById("periciasList");
+    if (!listEl) return;
+
+    if (!items) {
+      try {
+        items = await db.listarPericias(50);
+      } catch (err) {
+        listEl.innerHTML = `<div class="pericias-empty">❌ Erro ao carregar: ${err.message}</div>`;
+        return;
+      }
+    }
+
+    if (!items || items.length === 0) {
+      listEl.innerHTML = `<div class="pericias-empty">Nenhuma perícia salva ainda.<br>Clique em "💾 Salvar" para gravar a perícia atual.</div>`;
+      return;
+    }
+
+    listEl.innerHTML = items.map(p => {
+      const date = new Date(p.created_at).toLocaleDateString("pt-BR");
+      const isActive = p.id === this.currentPericiaId;
+      return `
+        <div class="pericia-card${isActive ? ' active' : ''}" onclick="app.carregarPericiaDoDb('${p.id}')">
+          <div class="pericia-card-top">
+            <span class="pericia-card-name">${p.nome_periciado || "Sem nome"}</span>
+            <span class="pericia-card-status ${p.status || 'rascunho'}">${p.status || "rascunho"}</span>
+          </div>
+          <div class="pericia-card-meta">
+            <span>📋 ${p.numero_processo || "Sem processo"}</span>
+            <span>📍 ${p.municipio || "AP"}</span>
+            <span>💰 R$ ${Number(p.renda_per_capita || 0).toFixed(2)}/cap</span>
+            <span>📅 ${date}</span>
+          </div>
+          <div class="pericia-card-actions" onclick="event.stopPropagation()">
+            <button onclick="app.carregarPericiaDoDb('${p.id}')">📂 Abrir</button>
+            <button onclick="app.concluirPericiaDb('${p.id}')">✅ Concluir</button>
+            <button class="btn-danger" onclick="app.excluirPericia('${p.id}')">🗑️ Excluir</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  async carregarPericiaDoDb(id) {
+    try {
+      const row = await db.carregarPericia(id);
+      if (!row || !row.form_data) throw new Error("Perícia não encontrada.");
+
+      this.formData = JSON.parse(JSON.stringify(row.form_data));
+      this.currentPericiaId = row.id;
+
+      this.quickChips.forEach(c => c.classList.remove("active"));
+      this.renderFormPreview();
+      this.flashDocumentUpdate();
+      this.scrollToPage(1);
+
+      // Fecha o painel
+      this.togglePericiasPanel();
+
+      this.showToast(`📂 Perícia "${row.nome_periciado || "Carregada"}" aberta.`);
+      this.addAssistantMessage(`📂 Perícia **${row.nome_periciado}** (Processo: ${row.numero_processo || "N/A"}) carregada do banco de dados. Edite à vontade e clique em **Salvar** para atualizar.`);
+
+    } catch (err) {
+      console.error("Erro ao carregar:", err);
+      this.showToast("❌ Erro: " + err.message);
+    }
+  }
+
+  async concluirPericiaDb(id) {
+    try {
+      await db.concluirPericia(id);
+      this.showToast("✅ Perícia marcada como concluída.");
+      await this.renderPericiasList();
+    } catch (err) {
+      this.showToast("❌ " + err.message);
+    }
+  }
+
+  async excluirPericia(id) {
+    if (!confirm("Tem certeza que deseja excluir esta perícia permanentemente?")) return;
+    try {
+      await db.excluirPericia(id);
+      if (this.currentPericiaId === id) this.currentPericiaId = null;
+      this.showToast("🗑️ Perícia excluída.");
+      await this.renderPericiasList();
+    } catch (err) {
+      this.showToast("❌ " + err.message);
+    }
+  }
+
+  buscarPericiasDebounced(query) {
+    if (this._searchTimeout) clearTimeout(this._searchTimeout);
+    this._searchTimeout = setTimeout(async () => {
+      try {
+        const items = query.trim().length > 0
+          ? await db.buscarPericias(query.trim())
+          : await db.listarPericias(50);
+        await this.renderPericiasList(items);
+      } catch (err) {
+        console.error("Erro na busca:", err);
+      }
+    }, 350);
+  }
+
+  showToast(message) {
+    let toast = document.querySelector(".toast-notification");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.className = "toast-notification";
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 3500);
+  }
 }
 
 // Inicializa a aplicação assim que o DOM carregar
 window.addEventListener("DOMContentLoaded", () => {
   window.app = new PericiaApp();
 });
+

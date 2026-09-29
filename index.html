@@ -71,9 +71,19 @@
         🌙
       </button>
 
-      <button id="btnSettings" class="btn-header" title="Configurar Chave da API Gemini">
+      <button class="btn-header" id="btnSalvarPericia" onclick="app.salvarPericiaAtual()" title="Salvar perícia no banco de dados">
+        <span>💾</span>
+        <span class="hide-mobile">Salvar</span>
+      </button>
+
+      <button id="btnListarPericias" class="btn-header" onclick="app.togglePericiasPanel()" title="Perícias salvas no banco de dados">
+        <span>🗂️</span>
+        <span class="hide-mobile">Perícias Salvas</span>
+      </button>
+
+      <button id="btnSettings" class="btn-header" title="Configurações avançadas">
         <span>⚙️</span>
-        <span class="hide-mobile">Configurar IA</span>
+        <span class="hide-mobile">Config</span>
       </button>
 
       <button id="btnDownloadPdfTop" class="btn-header hide-mobile" onclick="app.exportToPdf()" title="Baixar diretamente em PDF">
@@ -103,10 +113,30 @@
     </div>
     
     <div class="quick-cases-right">
+      <!-- Indicador de Conexão IA e BD -->
+      <span class="status-badge" id="statusBadgeIA" title="Status da IA">🤖 IA Automática</span>
+      <span class="status-badge" id="statusBadgeBD" title="Status do Banco de Dados">💾 Local</span>
       <button class="chip-btn btn-summary-chip" onclick="app.openSummaryModal()" title="Abrir Ficha Resumo Rápida">
         <span>📊</span> Ficha do Periciado
       </button>
       <span class="badge-pages-count">6 Páginas A4 Judiciais</span>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       PAINEL LATERAL DE PERÍCIAS SALVAS (BANCO DE DADOS)
+       ===================================================================== -->
+  <div class="pericias-panel" id="periciasPanel">
+    <div class="pericias-panel-header">
+      <h3>🗂️ Perícias Salvas</h3>
+      <button class="btn-icon" onclick="app.togglePericiasPanel()" title="Fechar">×</button>
+    </div>
+    <div class="pericias-search">
+      <input type="text" id="searchPericias" class="form-control" placeholder="🔍 Buscar por nome, CPF ou nº do processo..." oninput="app.buscarPericiasDebounced(this.value)">
+    </div>
+    <div class="pericias-list" id="periciasList">
+      <!-- Renderizado dinamicamente via JS -->
+      <div class="pericias-empty">Nenhuma perícia salva ainda.<br>Clique em "💾 Salvar" para gravar a perícia atual.</div>
     </div>
   </div>
 
@@ -337,6 +367,7 @@
   <script src="template-schema.js"></script>
   <script src="sample-data.js"></script>
   <script src="docx-generator.js"></script>
+  <script src="db.js"></script>
   <script src="app.js"></script>
 
 </body>
