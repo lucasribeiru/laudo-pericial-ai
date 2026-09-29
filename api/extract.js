@@ -1,85 +1,179 @@
 /**
- * VERCEL SERVERLESS FUNCTION — PROXY INTELIGENTE DE IA PERICIAL
- * Suporta Gemini API (se configurada GEMINI_API_KEY) e Fallback Automático via IA Livre Integrada.
- * Zero configuração para o usuário final: funciona imediatamente sem chaves.
+ * PROXY INTELIGENTE DE IA PERICIAL — VISUM SOCIAL
+ * Suporta Gemini API (@google/genai) com Google Search Grounding (gemini-3.5-flash)
+ * e Fallback Automático via IA Livre Integrada.
  */
+
+import { GoogleGenAI } from "@google/genai";
 
 export default async function handler(req, res) {
   // CORS para permitir chamadas de qualquer frontend/desktop
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
+  }
+
+  if (req.method === "GET") {
+    return res.status(200).json({
+      status: "ok",
+      service: "Visum Social AI Proxy",
+      model: "gemini-3.5-flash",
+      grounding: "Google Search Grounding enabled"
+    });
   }
 
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Método não permitido. Use POST." });
   }
 
-  const { parts, model } = req.body || {};
+  const { parts, model, useSearch } = req.body || {};
 
   if (!parts || !Array.isArray(parts) || parts.length === 0) {
     return res.status(400).json({ error: "O campo 'parts' (array) é obrigatório." });
   }
 
+  // Detecta se é pedido de JSON estruturado do laudo ou consulta textual/tutoria
+  let fullPromptText = "";
+  for (const p of parts) {
+    if (p.text) fullPromptText += p.text + " ";
+  }
+  const isJsonExpected = /JSON|schema|Formulário Oficial|identificacao|Auto-preenchimento/i.test(fullPromptText);
+
+  // Normaliza as partes (inline_data -> inlineData)
+  const normalizedParts = parts.map(p => {
+    if (p.inline_data) {
+      return {
+        inlineData: {
+          mimeType: p.inline_data.mime_type || p.inline_data.mimeType || "image/jpeg",
+          data: p.inline_data.data
+        }
+      };
+    }
+    if (p.inlineData) {
+      return {
+        inlineData: {
+          mimeType: p.inlineData.mimeType || p.inlineData.mime_type || "image/jpeg",
+          data: p.inlineData.data
+        }
+      };
+    }
+    return p;
+  });
+
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-  // 1. TENTA VIA GEMINI API SE A CHAVE DO SERVIDOR ESTIVER CONFIGURADA
+  // 1. TENTA VIA SDK OFICIAL @google/genai COM GEMINI-3.5-FLASH E SEARCH GROUNDING
   if (GEMINI_API_KEY) {
     try {
+      const ai = new GoogleGenAI({
+        apiKey: GEMINI_API_KEY,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build'
+          }
+        }
+      });
+      const targetModel = model || "gemini-3.5-flash";
+
       const candidateModels = [
-        model || "gemini-2.0-flash",
-        "gemini-2.0-flash",
-        "gemini-2.5-flash",
-        "gemini-1.5-flash"
+        targetModel,
+        "gemini-3.5-flash",
+        "gemini-2.5-flash"
       ].filter((v, i, a) => v && a.indexOf(v) === i);
 
       for (const m of candidateModels) {
         try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${GEMINI_API_KEY}`;
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 25000);
+          // Tentativa 1: Com Google Search Grounding ativo (gemini-3.5-flash com googleSearch tool)
+          const configWithSearch = {
+            temperature: isJsonExpected ? 0.1 : 0.3,
+            tools: [{ googleSearch: {} }]
+          };
 
-          const geminiResponse = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            signal: controller.signal,
-            body: JSON.stringify({
-              contents: [{ parts }],
-              generationConfig: {
-                temperature: 0.1,
-                responseMimeType: "application/json"
-              }
-            })
-          });
-          clearTimeout(timeout);
+          try {
+            const response = await ai.models.generateContent({
+              model: m,
+              contents: normalizedParts,
+              config: configWithSearch
+            });
 
-          if (geminiResponse.ok) {
-            const data = await geminiResponse.json();
-            const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            const rawText = response.text;
             if (rawText) {
-              const parsed = JSON.parse(rawText.replace(/```json|```/g, "").trim());
-              return res.status(200).json({
-                success: true,
-                model: m,
-                data: parsed
-              });
+              let parsed = null;
+              if (isJsonExpected) {
+                try {
+                  parsed = JSON.parse(rawText.replace(/```json|```/g, "").trim());
+                } catch {
+                  // Tenta extrair primeiro bloco JSON
+                  const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+                  if (jsonMatch) {
+                    try { parsed = JSON.parse(jsonMatch[0]); } catch {}
+                  }
+                }
+              }
+
+              // Se o JSON foi gerado com sucesso ou se não era esperado JSON, retorna!
+              if (!isJsonExpected || (parsed && typeof parsed === "object")) {
+                return res.status(200).json({
+                  success: true,
+                  model: m,
+                  grounded: true,
+                  data: parsed,
+                  text: rawText
+                });
+              }
             }
+          } catch (searchToolErr) {
+            console.warn(`Search grounding falhou para ${m}, tentando modo direto:`, searchToolErr.message);
           }
-        } catch (e) {
-          console.warn(`Tentativa com ${m} falhou:`, e.message);
+
+          // Tentativa 2: Modo com responseMimeType json garantido
+          const fallbackConfig = {
+            temperature: 0.1
+          };
+          if (isJsonExpected) {
+            fallbackConfig.responseMimeType = "application/json";
+          }
+
+          const responseFallback = await ai.models.generateContent({
+            model: m,
+            contents: normalizedParts,
+            config: fallbackConfig
+          });
+
+          const rawTextFallback = responseFallback.text;
+          if (rawTextFallback) {
+            let parsed = null;
+            if (isJsonExpected) {
+              try {
+                parsed = JSON.parse(rawTextFallback.replace(/```json|```/g, "").trim());
+              } catch (e) {
+                console.warn("JSON parse fallback error:", e);
+              }
+            }
+
+            return res.status(200).json({
+              success: true,
+              model: m,
+              grounded: false,
+              data: parsed,
+              text: rawTextFallback
+            });
+          }
+        } catch (mErr) {
+          console.warn(`Tentativa com ${m} falhou:`, mErr.message);
         }
       }
-    } catch (err) {
-      console.warn("Falha no Gemini, acionando fallback livre:", err.message);
+    } catch (sdkErr) {
+      console.warn("Falha geral no SDK @google/genai:", sdkErr.message);
     }
   }
 
-  // 2. FALLBACK AUTOMÁTICO VIA IA LIVRE (SEM CHAVE, 100% FUNCIONAL)
+  // 2. FALLBACK AUTOMÁTICO VIA IA LIVRE INTEGRADA (SEM CHAVE NECESSÁRIA)
   try {
-    return await handleFreeAIExtract(parts, res);
+    return await handleFreeAIExtract(parts, isJsonExpected, res);
   } catch (freeErr) {
     console.error("Erro no processamento da IA livre:", freeErr);
     return res.status(500).json({
@@ -88,10 +182,34 @@ export default async function handler(req, res) {
   }
 }
 
-async function handleFreeAIExtract(parts, res) {
+async function handleFreeAIExtract(parts, isJsonExpected, res) {
   let combinedText = "";
   for (const p of parts) {
     if (p.text) combinedText += "\n" + p.text;
+  }
+
+  if (!isJsonExpected) {
+    // É uma consulta de tutoria à Dra. Ivonete
+    const tutorResponse = await fetch("https://text.pollinations.ai/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [
+          { role: "system", content: "Você é a Dra. Ivonete Ferreira Maciel, Tutora e Perita Assistente Social da Justiça Federal do Amapá. Responda em Markdown claro com fundamentação técnica do Serviço Social e legislações do BPC/LOAS." },
+          { role: "user", content: combinedText.substring(0, 4000) }
+        ],
+        model: "openai"
+      })
+    });
+
+    if (tutorResponse.ok) {
+      const text = await tutorResponse.text();
+      return res.status(200).json({
+        success: true,
+        model: "ia-livre-tutoria",
+        text: text
+      });
+    }
   }
 
   const systemPrompt = `Você é a Dra. Ivonete Ferreira Maciel, Perita Judicial e Assistente Social da Justiça Federal do Amapá.

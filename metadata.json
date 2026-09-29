@@ -1,0 +1,8 @@
+{
+  "name": "Visum Social - Perícias Judiciais BPC/LOAS com IA",
+  "description": "Plataforma de perícias judiciais socioeconômicas (BPC/LOAS). Análise documental, inspeção de fotos in loco com IA e emissão de laudos oficiais em Word e PDF.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

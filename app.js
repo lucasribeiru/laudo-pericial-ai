@@ -163,6 +163,16 @@ class PericiaApp {
       });
     });
 
+    // Auto-preenchimento a partir do contexto da conversa do chat
+    const btnAutoFill = document.getElementById("btnAutoFillContext");
+    if (btnAutoFill) {
+      btnAutoFill.addEventListener("click", () => this.autoFillFromContext());
+    }
+    const btnDocAutoFill = document.getElementById("btnDocAutoFill");
+    if (btnDocAutoFill) {
+      btnDocAutoFill.addEventListener("click", () => this.autoFillFromContext());
+    }
+
     // Exportação Word (.docx e .doc)
     if (this.btnDownloadDocx) this.btnDownloadDocx.addEventListener("click", () => this.exportToWord());
     if (this.btnDownloadDocxTop) this.btnDownloadDocxTop.addEventListener("click", () => this.exportToWord());
@@ -445,9 +455,22 @@ Com base neles, o **Visum Social** realiza a **inspeção visual minuciosa das i
 
     this.messagesContainer.appendChild(bubble);
     this.scrollToBottom();
+
+    this.chatHistory.push({
+      role: "user",
+      text: text,
+      files: files,
+      timestamp: new Date().toISOString()
+    });
   }
 
   addAssistantMessage(text, extractionData = null) {
+    this.chatHistory.push({
+      role: "assistant",
+      text: text,
+      extractionData: extractionData,
+      timestamp: new Date().toISOString()
+    });
     const bubble = document.createElement("div");
     bubble.className = "message-bubble assistant";
 
@@ -967,6 +990,7 @@ Todas as seções do **Formulário de Perícia Socioeconômica (Anexo IV)** fora
       }
     }
     const text = fullContent;
+    const cleanForm = JSON.parse(JSON.stringify(DEFAULT_FORM_DATA));
 
     const extractByRegex = (patterns) => {
       for (const p of patterns) {
@@ -1183,6 +1207,104 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
         this.formData
       );
     }, 600);
+  }
+
+  // =====================================================================
+  // AUTO-PREENCHER A PARTIR DO CONTEXTO (CHAT -> FOLHA A4)
+  // =====================================================================
+  async autoFillFromContext() {
+    if (this.isProcessing) return;
+
+    // 1. Coleta todo o histórico de conversas do chat
+    let conversationParts = [];
+    
+    if (this.chatHistory && this.chatHistory.length > 0) {
+      for (const m of this.chatHistory) {
+        let msg = `${m.role === 'user' ? 'PERITO/USUÁRIO' : 'ASSISTENTE/IA'}: ${m.text}`;
+        if (m.files && m.files.length > 0) {
+          msg += `\n[ARQUIVOS MENCIONADOS/ANEXADOS: ${m.files.map(f => f.name || f.nome).join(', ')}]`;
+        }
+        conversationParts.push(msg);
+      }
+    }
+
+    // Se o histórico estiver vazio ou incompleto, extrai também dos elementos DOM do chat
+    if (conversationParts.length === 0 && this.messagesContainer) {
+      const bubbles = this.messagesContainer.querySelectorAll(".message-bubble");
+      bubbles.forEach(b => {
+        const isUser = b.classList.contains("user");
+        const contentEl = b.querySelector(".bubble-content");
+        if (contentEl) {
+          const t = contentEl.innerText.trim();
+          if (t && !t.includes("Olá! Bem-vindo ao Visum Social")) {
+            conversationParts.push(`${isUser ? 'PERITO/USUÁRIO' : 'ASSISTENTE/IA'}: ${t}`);
+          }
+        }
+      });
+    }
+
+    const conversationText = conversationParts.join("\n\n");
+
+    // Coleta arquivos anexados ou staged
+    const allFiles = [...this.stagedFiles];
+    if (this.formData && Array.isArray(this.formData.anexos)) {
+      this.formData.anexos.forEach(a => {
+        if (!allFiles.some(f => f.name === a.nome)) {
+          allFiles.push({
+            name: a.nome,
+            type: a.mime || "image/jpeg",
+            base64: a.base64,
+            size: a.tamanho || ""
+          });
+        }
+      });
+    }
+
+    if (!conversationText.trim() && allFiles.length === 0) {
+      this.showToast("ℹ️ O chat ainda não possui relatos ou dados. Digite as informações do periciado ou anexe documentos primeiro!");
+      this.chatInput.focus();
+      return;
+    }
+
+    this.isProcessing = true;
+    this.showLoadingOverlay(
+      "Auto-preenchendo Laudo a partir da Conversa",
+      "Puxando informações discutidas no chat e mapeando diretamente na folha A4 oficial..."
+    );
+
+    const autoFillInstruction = `AÇÃO REQUISITADA: AUTO-PREENCHER MODELO JUDICIAL OFICIAL DE PERÍCIA SOCIOECONÔMICA (ANEXO IV) A PARTIR DE TODO O DIÁLOGO DO CHAT.
+Analise com rigor técnico todas as mensagens, dados de identificação, certidões, laudos médicos, extratos de CadÚnico, fotos e relatos compartilhados na conversa abaixo.
+Mapeie e preencha todos os campos do formulário oficial de 7 páginas da Justiça Federal:
+1. Identificação (periciado, processo, representante legal, CPF, RG, COD.F, NIS, nascimento, sexo, profissão, endereço, naturalidade, telefone).
+2. Situação pessoal e capacidade laboral (idade de trabalhar, cursos, histórico de trabalho, CTPS).
+3. Grupo familiar e renda (identifique cada membro familiar, parentesco, idade, ocupação e renda individual. Calcule a renda per capita para o critério do BPC/LOAS de 1/4 SM).
+4. Moradia e Visita Domiciliar (tipo de construção, alvenaria ou madeira, cobertura de amianto ou barro, tipo de piso, rua asfaltada ou de terra/lama, inventário minucioso dos bens de sobrevivência).
+5. Despesas mensais relatadas (habitação, luz, água, alimentação, transporte, saúde/medicamentos contínuos).
+6. Conclusão, Estudo Social e Parecer do Serviço Social (fundamente a vulnerabilidade material, barreiras sociais enfrentadas e parecer favorável/desfavorável fundamentado no art. 20 da Lei 8.742/93).
+7. Classificação pericial de 1 a 3 (complexidade, risco, distância, dificuldade de acesso, risco social).
+
+Retorne EXCLUSIVAMENTE um objeto JSON válido (sem crases nem formatação markdown) com o schema oficial do laudo.`;
+
+    const fullContextPrompt = `${autoFillInstruction}\n\n==================== HISTÓRICO DA CONVERSA ====================\n${conversationText}\n================================================================`;
+
+    try {
+      if (this.apiKey) {
+        await this.processWithGeminiAPI(fullContextPrompt, allFiles);
+      } else if (this.useServerAI) {
+        await this.processWithServerAI(fullContextPrompt, allFiles);
+      } else {
+        await this.processWithLocalExtractor(fullContextPrompt, allFiles);
+      }
+
+      this.showToast("⚡ Laudo A4 preenchido com sucesso a partir do contexto do chat!");
+    } catch (err) {
+      console.warn("Auto-fill via API falhou, acionando extrator local heurístico:", err);
+      await this.processWithLocalExtractor(conversationText, allFiles);
+      this.showToast("⚡ Laudo preenchido via extrator de contexto inteligente!");
+    } finally {
+      this.isProcessing = false;
+      this.hideLoadingOverlay();
+    }
   }
 
   resetToBlankForm() {

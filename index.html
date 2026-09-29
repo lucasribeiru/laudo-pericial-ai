@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Visum Social - Perícias Judiciais BPC/LOAS com IA</title>
+  <meta name="description" content="Plataforma de perícias judiciais socioeconômicas (BPC/LOAS). Análise documental, inspeção de fotos in loco com IA e emissão de laudos oficiais em Word e PDF.">
+  <meta property="og:title" content="Visum Social - Perícias Judiciais BPC/LOAS com IA">
+  <meta property="og:description" content="Plataforma de perícias judiciais socioeconômicas (BPC/LOAS). Análise documental, inspeção de fotos in loco com IA e emissão de laudos oficiais em Word e PDF.">
   <link rel="icon" type="image/jpeg" href="visum_social_logo.jpg">
   
   <!-- PWA & Mobile App Meta Tags -->
@@ -105,6 +108,9 @@
       <button class="chip-btn" data-case="mazagao" title="Carregar exemplo preenchido apenas para consulta/demonstração">
         <span>✦</span> Exemplo Demonstrativo (Mazagão/AP)
       </button>
+      <button class="chip-btn btn-autofill-chip" id="btnAutoFillContext" onclick="app.autoFillFromContext()" title="Auto-preencher o formulário A4 oficial com todos os dados e relatos discutidos no chat">
+        <span>⚡</span> Auto-preencher do Contexto
+      </button>
     </div>
     
     <div class="quick-cases-right">
@@ -202,6 +208,9 @@
       <div class="chat-input-wrapper">
         <!-- Atalhos Rápido para a Assistente Social -->
         <div class="social-work-quick-chips">
+          <button type="button" class="quick-prompt-chip autofill-chip" onclick="app.autoFillFromContext()" title="Puxar dados do diálogo no chat e preencher a folha A4 oficial">
+            ⚡ Auto-preencher Laudo (Contexto)
+          </button>
           <button type="button" class="quick-prompt-chip" onclick="app.insertPromptSuggestion('foto')">
             📷 Foto Moradia
           </button>
@@ -291,6 +300,10 @@
             <button type="button" class="btn-zoom fit-btn" id="btnZoomFit" onclick="app.fitToWidth()" title="Ajustar à largura da tela">⛶ Ajustar</button>
           </div>
 
+          <button class="btn-action-doc autofill-btn" id="btnDocAutoFill" onclick="app.autoFillFromContext()" title="Preencher automaticamente campos da folha A4 com dados da conversa atual">
+            <span>⚡</span>
+            <span>Preencher do Chat</span>
+          </button>
           <button class="btn-action-doc hide-mobile" id="btnPrintPdf" title="Imprimir o laudo oficial">
             <span>🖨️</span>
             <span>Imprimir</span>
