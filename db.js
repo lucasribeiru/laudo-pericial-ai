@@ -266,6 +266,53 @@ class LocalStorageDB {
     this._saveAll(items);
     return true;
   }
+
+  /** Exporta uma perícia individual como arquivo .visum (JSON formatado) para a pasta do computador */
+  exportarParaArquivo(id) {
+    const item = this._getAll().find(i => i.id === id);
+    if (!item) throw new Error("Perícia não encontrada.");
+
+    const nomeArquivo = `Pericia_${(item.nome_periciado || "SemNome").replace(/[^a-zA-Z0-9_-]/g, "_")}_${item.numero_processo || "Processo"}.visum`;
+    const jsonStr = JSON.stringify(item, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = nomeArquivo;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 500);
+    return nomeArquivo;
+  }
+
+  /** Importa uma perícia a partir de um arquivo .visum ou .json da pasta do computador */
+  importarDeArquivo(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (!parsed.form_data) {
+            // Se for o próprio formData direto
+            parsed.form_data = JSON.parse(JSON.stringify(parsed));
+          }
+          parsed.id = "imp_" + Date.now().toString(36);
+          parsed.created_at = new Date().toISOString();
+          const items = this._getAll();
+          items.unshift(parsed);
+          this._saveAll(items);
+          resolve(parsed);
+        } catch (err) {
+          reject(new Error("Arquivo de perícia inválido: " + err.message));
+        }
+      };
+      reader.onerror = () => reject(new Error("Erro ao ler arquivo da pasta."));
+      reader.readAsText(file);
+    });
+  }
 }
 
 // ============================================================================

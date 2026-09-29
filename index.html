@@ -124,18 +124,29 @@
   </div>
 
   <!-- =====================================================================
-       PAINEL LATERAL DE PERÍCIAS SALVAS (BANCO DE DADOS)
+       PAINEL LATERAL DE PERÍCIAS SALVAS (BANCO DE DADOS LOCAL E EM PASTA)
        ===================================================================== -->
   <div class="pericias-panel" id="periciasPanel">
     <div class="pericias-panel-header">
       <h3>🗂️ Perícias Salvas</h3>
       <button class="btn-icon" onclick="app.togglePericiasPanel()" title="Fechar">×</button>
     </div>
+    
+    <div class="pericias-panel-actions">
+      <button type="button" class="btn-panel-action primary" onclick="app.salvarPericiaAtual()" title="Salvar perícia atual">
+        <span>💾</span> Salvar Perícia Atual
+      </button>
+      <button type="button" class="btn-panel-action" onclick="document.getElementById('importPericiaFileInput').click()" title="Abrir um arquivo salvo de qualquer pasta do seu computador">
+        <span>📁</span> Abrir da Pasta (.visum)
+      </button>
+      <input type="file" id="importPericiaFileInput" accept=".visum,.json" style="display:none;" onchange="app.handleImportPericiaFile(event)">
+    </div>
+
     <div class="pericias-search">
       <input type="text" id="searchPericias" class="form-control" placeholder="🔍 Buscar por nome, CPF ou nº do processo..." oninput="app.buscarPericiasDebounced(this.value)">
     </div>
     <div class="pericias-list" id="periciasList">
-      <!-- Renderizado dinamicamente via JS -->
+      <!-- Renderizado dinamicamente via JS em Cards Retrô-Modernos -->
       <div class="pericias-empty">Nenhuma perícia salva ainda.<br>Clique em "💾 Salvar" para gravar a perícia atual.</div>
     </div>
   </div>
@@ -148,6 +159,45 @@
     <!-- PAINEL ESQUERDO: CHAT IA GEMINI & VISITA DOMICILIAR -->
     <section class="chat-pane" id="chatPane">
       
+      <!-- CARDS DE FLUXO RETRÔ-MODERNO (ABSURDAMENTE SIMPLES PARA USUÁRIO LEIGO) -->
+      <div class="retro-flow-cards">
+        <div class="flow-card" onclick="app.scrollToPage(1)" title="Ir para identificação do periciado">
+          <div class="flow-card-icon">👤</div>
+          <div class="flow-card-content">
+            <strong>1. Periciado</strong>
+            <span>Nome e CPF</span>
+          </div>
+        </div>
+        <div class="flow-card" onclick="document.getElementById('fileInput').click()" title="Anexar fotos da casa e documentos">
+          <div class="flow-card-icon">📸</div>
+          <div class="flow-card-content">
+            <strong>2. Fotos & Docs</strong>
+            <span>Fachada e cômodos</span>
+          </div>
+        </div>
+        <div class="flow-card" onclick="app.scrollToPage(2)" title="Ir para situação da família e renda">
+          <div class="flow-card-icon">💰</div>
+          <div class="flow-card-content">
+            <strong>3. Renda Familiar</strong>
+            <span>Critério LOAS</span>
+          </div>
+        </div>
+        <div class="flow-card" onclick="app.scrollToPage(7)" title="Ver fotos anexadas no relatório">
+          <div class="flow-card-icon">🖼️</div>
+          <div class="flow-card-content">
+            <strong>4. Anexos Oficiais</strong>
+            <span>Fotos no laudo</span>
+          </div>
+        </div>
+        <div class="flow-card highlight" onclick="app.exportToWord()" title="Baixar arquivo oficial do Word">
+          <div class="flow-card-icon">📥</div>
+          <div class="flow-card-content">
+            <strong>5. Baixar Word</strong>
+            <span>Laudo Oficial .docx</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Lista de Mensagens -->
       <div class="messages-container" id="messagesContainer">
         <!-- As mensagens e respostas da IA serão injetadas dinamicamente aqui -->
@@ -362,6 +412,67 @@
         <button class="btn-header" onclick="app.closeSettingsModal()">Cancelar</button>
         <button class="btn-header primary" id="btnSaveSettings">Salvar Configurações</button>
       </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       TELA DE ATIVAÇÃO ÚNICA DA CHAVE GEMINI (PRIMEIRO USO)
+       ===================================================================== -->
+  <div class="onboarding-overlay" id="onboardingModal">
+    <div class="onboarding-card">
+      <div class="onboarding-retro-badge">✦ ATIVAÇÃO ÚNICA ✦</div>
+      <h2>Ativar Inteligência Artificial no Computador</h2>
+      <p class="onboarding-desc">
+        O <strong>Visum Social</strong> analisa fotos da visita domiciliar e laudos médicos automaticamente. 
+        Cole sua chave gratuita do Google Gemini abaixo — <strong>você só precisará fazer isso uma única vez!</strong>
+      </p>
+
+      <div class="onboarding-input-box">
+        <label for="onboardingApiKeyInput">Sua Chave Gratuita (começa com AIzaSy...):</label>
+        <div class="input-with-paste">
+          <input type="password" id="onboardingApiKeyInput" class="form-control" placeholder="Cole aqui: AIzaSy..." autocomplete="off">
+          <button type="button" class="btn-paste-action" onclick="app.pasteKeyToOnboarding()" title="Colar da área de transferência">📋 Colar</button>
+        </div>
+        <small class="onboarding-hint">
+          🔑 Fica gravada permanentemente no seu aplicativo. Nunca mais será solicitada.
+        </small>
+      </div>
+
+      <div class="onboarding-actions">
+        <button type="button" class="btn-onboarding-primary" onclick="app.saveOnboardingKey()">
+          <span>⚡</span> Salvar Chave e Iniciar Perícias
+        </button>
+        <button type="button" class="btn-onboarding-secondary" onclick="app.skipOnboarding()">
+          Continuar no Modo Inteligente sem Chave
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       OVERLAY DE PROCESSAMENTO ANIMADO (ÍCONES MEXENDO / AGUARDE)
+       ===================================================================== -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-modal-card">
+      <div class="loading-animation-container">
+        <div class="retro-icon-wrapper">
+          <span class="animated-icon icon-clipboard">📋</span>
+          <span class="animated-icon icon-lens">🔍</span>
+          <span class="animated-icon icon-magic">✨</span>
+        </div>
+        <div class="retro-spinner-glow"></div>
+      </div>
+      <h3 class="loading-title" id="loadingTitle">Examinando Perícia com Rigor Técnico</h3>
+      <div class="loading-phrase" id="loadingPhrase">Lendo certidões, laudos médicos e fotos da moradia...</div>
+      
+      <div class="loading-progress-container">
+        <div class="loading-progress-bar" id="loadingProgressBar"></div>
+      </div>
+
+      <p class="loading-subtext">
+        ⏳ <strong>Por favor, aguarde alguns instantes:</strong><br>
+        A <strong>Dra. Ivonete (Tutora Pericial)</strong> está analisando os dados e formatando a folha oficial de 7 páginas para o Judiciário.
+      </p>
     </div>
   </div>
 

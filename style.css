@@ -2380,24 +2380,554 @@ body {
   line-height: 1.45;
 }
 
-.anexos-btn-add {
-  background: var(--color-cyan-primary);
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 8.5pt;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  box-shadow: 0 2px 6px rgba(0, 124, 156, 0.25);
-}
-
 .anexos-btn-add:hover {
   background: #00607a;
 }
+
+/* ==========================================================================
+   CARDS DE FLUXO RETRÔ-MODERNO (SIMPLES, VISUAL E INTUITIVO PARA USUÁRIO LEIGO)
+   ========================================================================== */
+.retro-flow-cards {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--gemini-border);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.flow-card {
+  flex: 1;
+  min-width: 140px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--gemini-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  user-select: none;
+}
+
+.flow-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-cyan-primary);
+  box-shadow: 0 4px 12px rgba(0, 124, 156, 0.15);
+  background: var(--bg-surface-hover);
+}
+
+.flow-card:active {
+  transform: translateY(0);
+}
+
+.flow-card-icon {
+  font-size: 1.5rem;
+  background: rgba(0, 124, 156, 0.08);
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.flow-card-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.flow-card-content strong {
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.flow-card-content span {
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+.flow-card.highlight {
+  background: linear-gradient(135deg, rgba(0, 124, 156, 0.08) 0%, rgba(10, 37, 64, 0.04) 100%);
+  border: 1.5px solid var(--color-cyan-primary);
+}
+
+.flow-card.highlight .flow-card-icon {
+  background: var(--color-cyan-primary);
+  color: white;
+}
+
+/* ==========================================================================
+   OVERLAY DE PROCESSAMENTO ANIMADO (ÍCONES MEXENDO / CARREGANDO COM RIGOR)
+   ========================================================================== */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 37, 64, 0.75);
+  backdrop-filter: blur(8px);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.loading-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.loading-modal-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 36px 32px;
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  border: 2px solid #e2e8f0;
+  position: relative;
+  overflow: hidden;
+  animation: modalPopIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes modalPopIn {
+  0% { transform: scale(0.9) translateY(20px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.loading-animation-container {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.retro-icon-wrapper {
+  position: relative;
+  z-index: 2;
+  font-size: 3rem;
+}
+
+.animated-icon.icon-clipboard {
+  display: inline-block;
+  animation: swayClipboard 2s infinite ease-in-out;
+}
+
+.animated-icon.icon-lens {
+  position: absolute;
+  top: -10px;
+  right: -15px;
+  font-size: 1.8rem;
+  animation: scanLens 2.5s infinite ease-in-out;
+}
+
+.animated-icon.icon-magic {
+  position: absolute;
+  bottom: -5px;
+  left: -12px;
+  font-size: 1.5rem;
+  animation: sparkleMagic 1.8s infinite ease-in-out;
+}
+
+@keyframes swayClipboard {
+  0%, 100% { transform: rotate(-5deg) translateY(0); }
+  50% { transform: rotate(5deg) translateY(-8px); }
+}
+
+@keyframes scanLens {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-10px, 12px) scale(1.15); }
+}
+
+@keyframes sparkleMagic {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2) rotate(15deg); }
+}
+
+.retro-spinner-glow {
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+  border: 3px dashed rgba(0, 124, 156, 0.4);
+  animation: rotateSpinner 6s linear infinite;
+}
+
+@keyframes rotateSpinner {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0a2540;
+  margin: 0 0 8px 0;
+  letter-spacing: -0.3px;
+}
+
+.loading-phrase {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-cyan-primary);
+  min-height: 24px;
+  margin-bottom: 18px;
+  transition: all 0.3s;
+}
+
+.loading-progress-container {
+  width: 100%;
+  height: 8px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  border: 1px solid #e2e8f0;
+}
+
+.loading-progress-bar {
+  height: 100%;
+  width: 30%;
+  background: linear-gradient(90deg, #007C9C 0%, #00C2DB 50%, #007C9C 100%);
+  background-size: 200% 100%;
+  border-radius: 999px;
+  animation: progressPulse 1.8s infinite linear;
+  transition: width 0.4s ease;
+}
+
+@keyframes progressPulse {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.loading-subtext {
+  font-size: 0.84rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ==========================================================================
+   TELA DE ATIVAÇÃO ÚNICA DA CHAVE GEMINI (ONBOARDING RETRÔ-MODERNO)
+   ========================================================================== */
+.onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 37, 64, 0.85);
+  backdrop-filter: blur(10px);
+  z-index: 99998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s;
+}
+
+.onboarding-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.onboarding-card {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 38px 34px;
+  max-width: 520px;
+  width: 100%;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
+  border: 2px solid #e2e8f0;
+  animation: modalPopIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.onboarding-retro-badge {
+  display: inline-block;
+  background: rgba(0, 124, 156, 0.1);
+  color: var(--color-cyan-primary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(0, 124, 156, 0.2);
+}
+
+.onboarding-card h2 {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #0a2540;
+  margin: 0 0 10px 0;
+  letter-spacing: -0.4px;
+}
+
+.onboarding-desc {
+  font-size: 0.9rem;
+  color: #475569;
+  line-height: 1.55;
+  margin-bottom: 22px;
+}
+
+.onboarding-input-box {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.onboarding-input-box label {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 8px;
+}
+
+.input-with-paste {
+  display: flex;
+  gap: 8px;
+}
+
+.input-with-paste input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  background: #ffffff;
+}
+
+.btn-paste-action {
+  background: var(--color-cyan-primary);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 0 16px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-paste-action:hover {
+  background: #00607a;
+}
+
+.onboarding-hint {
+  display: block;
+  font-size: 0.76rem;
+  color: #64748b;
+  margin-top: 8px;
+}
+
+.onboarding-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.btn-onboarding-primary {
+  background: linear-gradient(135deg, #007C9C 0%, #00C2DB 100%);
+  color: white;
+  border: none;
+  padding: 14px 20px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(0, 124, 156, 0.35);
+  transition: all 0.2s;
+}
+
+.btn-onboarding-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 124, 156, 0.45);
+}
+
+.btn-onboarding-secondary {
+  background: transparent;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-onboarding-secondary:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+/* ==========================================================================
+   PAINEL DE PERÍCIAS SALVAS COM AÇÕES DE PASTA E CARDS RETRÔ-MODERNOS
+   ========================================================================== */
+.pericias-panel-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--gemini-border);
+}
+
+.btn-panel-action {
+  flex: 1;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.btn-panel-action:hover {
+  background: #f1f5f9;
+  border-color: var(--color-cyan-primary);
+}
+
+.btn-panel-action.primary {
+  background: var(--color-cyan-primary);
+  color: white;
+  border-color: var(--color-cyan-primary);
+}
+
+.btn-panel-action.primary:hover {
+  background: #00607a;
+}
+
+.pericia-card-retro {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-left: 5px solid var(--color-cyan-primary);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s;
+}
+
+.pericia-card-retro:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  border-color: #cbd5e1;
+}
+
+.pericia-card-retro-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+
+.pericia-card-retro-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0a2540;
+}
+
+.pericia-card-retro-meta {
+  font-size: 0.76rem;
+  color: #64748b;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pericia-card-retro-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.pericia-card-retro-badge.favorable {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.pericia-card-retro-badge.unfavorable {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.pericia-card-retro-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.btn-card-micro {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+
+.btn-card-micro:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.btn-card-micro.primary {
+  background: var(--color-cyan-primary);
+  color: white;
+  border-color: var(--color-cyan-primary);
+}
+
+.btn-card-micro.danger {
+  color: #dc2626;
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.btn-card-micro.danger:hover {
+  background: #dc2626;
+  color: white;
+}
+
 
 
 

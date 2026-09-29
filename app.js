@@ -35,6 +35,7 @@ class PericiaApp {
     this.appendInitialGreeting();
     this.initStatusBadges();
     this.detectServerAI();
+    this.checkOnboarding();
   }
 
   initElements() {
@@ -544,16 +545,28 @@ Com base neles, o **Visum Social** realiza a **inspeção visual minuciosa das i
     }
 
     // 2. CASO CONTRÁRIO: FLUXO DE EXTRAÇÃO PERICIAL E ANÁLISE DE FOTOS/DOCUMENTOS
-    // PRIORIDADE DE IA:
-    // 1. Servidor automático (/api/extract) — chave no backend, sem configuração
-    // 2. Chave local do usuário (se configurada nas settings)
-    // 3. Extrator inteligente integrado (sem IA, regex + heurística)
-    if (this.useServerAI) {
-      await this.processWithServerAI(userText, files);
-    } else if (this.apiKey) {
-      await this.processWithGeminiAPI(userText, files);
-    } else {
-      await this.processWithLocalExtractor(userText, files);
+    // Mostra tela de carregamento animada com ícones se mexendo
+    this.showLoadingOverlay(
+      "Examinando Perícia com Rigor Técnico",
+      files.length > 0
+        ? `A Tutora está analisando ${files.length} documento(s) e fotos da moradia...`
+        : "A Dra. Ivonete está formatando o laudo oficial de 7 páginas..."
+    );
+
+    try {
+      // PRIORIDADE DE IA:
+      // 1. Chave permanente do usuário (Google Gemini direto) - Rápido, sem limites de 4.5MB da Vercel
+      // 2. Servidor automático (/api/extract)
+      // 3. Extrator inteligente integrado (sem IA, regex + heurística)
+      if (this.apiKey) {
+        await this.processWithGeminiAPI(userText, files);
+      } else if (this.useServerAI) {
+        await this.processWithServerAI(userText, files);
+      } else {
+        await this.processWithLocalExtractor(userText, files);
+      }
+    } finally {
+      this.hideLoadingOverlay();
     }
   }
 
@@ -1874,6 +1887,11 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
       b.disabled = true;
     });
 
+    this.showLoadingOverlay(
+      "Gerando Laudo Oficial Word (.docx)",
+      "Formatando as 7 páginas oficiais, tabelas e anexos fotográficos..."
+    );
+
     try {
       const generator = new PericiaDocxGenerator(this.formData);
       const safeName = (this.formData.identificacao.periciado || "Periciado")
@@ -1889,6 +1907,7 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
       console.error("Erro na exportação Word:", err);
       alert("Erro ao baixar o arquivo Word: " + err.message);
     } finally {
+      this.hideLoadingOverlay();
       buttons.forEach(b => {
         b.innerHTML = defaultWordHtml;
         b.disabled = false;
@@ -1898,7 +1917,6 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
 
   // =====================================================================
   // EXPORTAÇÃO PARA PDF (.PDF) - 6 PÁGINAS OFICIAIS SEM CORTE NEM DESLOCAMENTO
-  // =====================================================================
   async exportToPdf() {
     const buttons = [this.btnDownloadPdf, this.btnDownloadPdfTop].filter(Boolean);
     const defaultPdfHtml = '<span>📄</span><span>Baixar PDF</span>';
@@ -1906,6 +1924,11 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
       b.innerHTML = `<span>⏳ Gerando PDF...</span>`;
       b.disabled = true;
     });
+
+    this.showLoadingOverlay(
+      "Gerando Laudo Oficial em PDF",
+      "Processando 7 páginas A4 em alta resolução para os Juizados Especiais..."
+    );
 
     let staging = null;
     try {
@@ -1988,6 +2011,7 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
       if (staging) staging.remove();
       window.print();
     } finally {
+      this.hideLoadingOverlay();
       if (staging) staging.remove();
       buttons.forEach(b => {
         b.innerHTML = defaultPdfHtml;
@@ -2357,7 +2381,14 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido (sem markdown) com o schema do for
         this.showToast("✅ Perícia salva com sucesso!");
       }
 
-      this.addAssistantMessage(`💾 Perícia **${this.formData.identificacao?.periciado || ""}** salva com sucesso no ${db.connected ? "banco de dados na nuvem" : "armazenamento local"}. ID: \`${result.id?.substring(0, 8) || "local"}\``);
+      const nomePericiado = this.formData.identificacao?.periciado || "Periciado";
+      this.addAssistantMessage(`💾 Perícia **${nomePericiado}** salva com sucesso na memória do aplicativo! Você pode acessá-la a qualquer momento em **Perícias Salvas** ou exportá-la para uma pasta do seu computador.`);
+
+      // Atualiza a lista se o painel estiver aberto
+      const panel = document.getElementById("periciasPanel");
+      if (panel && panel.classList.contains("open")) {
+        await this.renderPericiasList();
+      }
 
     } catch (err) {
       console.error("Erro ao salvar:", err);
@@ -2367,6 +2398,49 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido (sem markdown) com o schema do for
         btn.innerHTML = "<span>💾</span><span class='hide-mobile'>Salvar</span>";
         btn.disabled = false;
       }
+    }
+  }
+
+  salvarPericiaNaPasta(id) {
+    try {
+      if (typeof db === "undefined" || !db.exportarParaArquivo) {
+        throw new Error("Função de exportação para pasta não disponível.");
+      }
+      const filename = db.exportarParaArquivo(id);
+      this.showToast(`📁 Salvo na pasta do seu computador: ${filename}`);
+      this.addAssistantMessage(`📁 O arquivo da perícia (**${filename}**) foi gravado com sucesso na pasta do seu computador! Você pode copiá-lo para um pen drive ou abri-lo mais tarde.`);
+    } catch (err) {
+      console.error("Erro ao exportar para pasta:", err);
+      this.showToast("❌ Erro ao salvar na pasta: " + err.message);
+    }
+  }
+
+  async handleImportPericiaFile(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    try {
+      this.showLoadingOverlay("Importando Perícia da Pasta", `Lendo o arquivo ${file.name}...`);
+      const imported = await db.importarDeArquivo(file);
+      if (!imported || !imported.form_data) throw new Error("Arquivo não contém dados válidos de perícia.");
+
+      this.formData = JSON.parse(JSON.stringify(imported.form_data));
+      this.currentPericiaId = imported.id;
+
+      this.quickChips.forEach(c => c.classList.remove("active"));
+      this.renderFormPreview();
+      this.flashDocumentUpdate();
+      this.scrollToPage(1);
+
+      await this.renderPericiasList();
+      this.showToast(`✅ Perícia "${imported.nome_periciado || file.name}" carregada com sucesso!`);
+      this.addAssistantMessage(`📁 Perícia importada com sucesso do arquivo **${file.name}**. Os dados foram carregados nas 7 páginas oficiais do laudo.`);
+    } catch (err) {
+      console.error("Erro ao importar da pasta:", err);
+      this.showToast("❌ Erro ao abrir arquivo: " + err.message);
+    } finally {
+      this.hideLoadingOverlay();
+      event.target.value = "";
     }
   }
 
@@ -2408,29 +2482,35 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido (sem markdown) com o schema do for
     }
 
     if (!items || items.length === 0) {
-      listEl.innerHTML = `<div class="pericias-empty">Nenhuma perícia salva ainda.<br>Clique em "💾 Salvar" para gravar a perícia atual.</div>`;
+      listEl.innerHTML = `<div class="pericias-empty">Nenhuma perícia salva ainda.<br>Clique em "💾 Salvar Perícia Atual" para gravar ou em "📁 Abrir da Pasta" para carregar um arquivo .visum.</div>`;
       return;
     }
 
     listEl.innerHTML = items.map(p => {
-      const date = new Date(p.created_at).toLocaleDateString("pt-BR");
+      const date = new Date(p.created_at || Date.now()).toLocaleDateString("pt-BR");
       const isActive = p.id === this.currentPericiaId;
+      const nome = p.nome_periciado || "Periciado(a) não identificado";
+      const processo = p.numero_processo || "Sem processo";
+      const renda = Number(p.renda_per_capita || 0).toFixed(2);
+      const isFavorable = p.parecer_favoravel !== false;
+
       return `
-        <div class="pericia-card${isActive ? ' active' : ''}" onclick="app.carregarPericiaDoDb('${p.id}')">
-          <div class="pericia-card-top">
-            <span class="pericia-card-name">${p.nome_periciado || "Sem nome"}</span>
-            <span class="pericia-card-status ${p.status || 'rascunho'}">${p.status || "rascunho"}</span>
+        <div class="pericia-card-retro${isActive ? ' active' : ''}">
+          <div class="pericia-card-retro-header">
+            <span class="pericia-card-retro-title">👤 ${nome}</span>
+            <span class="pericia-card-retro-badge ${isFavorable ? 'favorable' : 'unfavorable'}">
+              ${isFavorable ? 'Favorável (LOAS)' : 'Em Análise'}
+            </span>
           </div>
-          <div class="pericia-card-meta">
-            <span>📋 ${p.numero_processo || "Sem processo"}</span>
-            <span>📍 ${p.municipio || "AP"}</span>
-            <span>💰 R$ ${Number(p.renda_per_capita || 0).toFixed(2)}/cap</span>
-            <span>📅 ${date}</span>
+          <div class="pericia-card-retro-meta">
+            <span>📋 Processo: <strong>${processo}</strong></span>
+            <span>💰 Renda per capita: <strong>R$ ${renda}</strong></span>
+            <span>📅 Data: ${date}</span>
           </div>
-          <div class="pericia-card-actions" onclick="event.stopPropagation()">
-            <button onclick="app.carregarPericiaDoDb('${p.id}')">📂 Abrir</button>
-            <button onclick="app.concluirPericiaDb('${p.id}')">✅ Concluir</button>
-            <button class="btn-danger" onclick="app.excluirPericia('${p.id}')">🗑️ Excluir</button>
+          <div class="pericia-card-retro-buttons" onclick="event.stopPropagation()">
+            <button class="btn-card-micro primary" onclick="app.carregarPericiaDoDb('${p.id}')" title="Carregar no laudo A4">📂 Abrir</button>
+            <button class="btn-card-micro" onclick="app.salvarPericiaNaPasta('${p.id}')" title="Baixar arquivo .visum para uma pasta do PC">📁 Salvar na Pasta</button>
+            <button class="btn-card-micro danger" onclick="app.excluirPericia('${p.id}')" title="Excluir do app">🗑️</button>
           </div>
         </div>
       `;
@@ -2454,7 +2534,7 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido (sem markdown) com o schema do for
       this.togglePericiasPanel();
 
       this.showToast(`📂 Perícia "${row.nome_periciado || "Carregada"}" aberta.`);
-      this.addAssistantMessage(`📂 Perícia **${row.nome_periciado}** (Processo: ${row.numero_processo || "N/A"}) carregada do banco de dados. Edite à vontade e clique em **Salvar** para atualizar.`);
+      this.addAssistantMessage(`📂 Perícia **${row.nome_periciado}** (Processo: ${row.numero_processo || "N/A"}) carregada. Edite à vontade e clique em **Salvar** para atualizar.`);
 
     } catch (err) {
       console.error("Erro ao carregar:", err);
@@ -2496,6 +2576,72 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido (sem markdown) com o schema do for
         console.error("Erro na busca:", err);
       }
     }, 350);
+  }
+
+  // =====================================================================
+  // ONBOARDING (ATIVAÇÃO ÚNICA DA CHAVE GEMINI NO PRIMEIRO USO)
+  // =====================================================================
+  checkOnboarding() {
+    const onboardingModal = document.getElementById("onboardingModal");
+    const skipped = sessionStorage.getItem("visum_onboarding_skipped");
+    if (!this.apiKey && !skipped && onboardingModal) {
+      setTimeout(() => onboardingModal.classList.add("open"), 600);
+    }
+  }
+
+  saveOnboardingKey() {
+    const input = document.getElementById("onboardingApiKeyInput");
+    const key = input ? input.value.trim() : "";
+    if (!key) {
+      alert("Por favor, cole sua chave do Google Gemini (começa com AIza...).");
+      return;
+    }
+    this.apiKey = key;
+    localStorage.setItem("gemini_api_key", key);
+    if (this.inputApiKey) this.inputApiKey.value = key;
+    
+    const onboardingModal = document.getElementById("onboardingModal");
+    if (onboardingModal) onboardingModal.classList.remove("open");
+    
+    this.showToast("⚡ Chave ativada com sucesso! Você nunca mais precisará digitá-la.");
+    this.addAssistantMessage("🎉 **Chave Gemini Ativada com Sucesso!**\nSua chave foi gravada de forma permanente no aplicativo. Agora você pode tirar fotos pelo celular ou anexar documentos em PDF para extração e análise automática do estudo social.");
+  }
+
+  async pasteKeyToOnboarding() {
+    try {
+      const text = await navigator.clipboard.readText();
+      const input = document.getElementById("onboardingApiKeyInput");
+      if (input && text) {
+        input.value = text.trim();
+        this.showToast("Chave colada da área de transferência!");
+      }
+    } catch {
+      this.showToast("Clique no campo e use Ctrl+V para colar.");
+    }
+  }
+
+  skipOnboarding() {
+    sessionStorage.setItem("visum_onboarding_skipped", "true");
+    const onboardingModal = document.getElementById("onboardingModal");
+    if (onboardingModal) onboardingModal.classList.remove("open");
+    this.showToast("Continuando no modo inteligente.");
+  }
+
+  // =====================================================================
+  // OVERLAY DE PROCESSAMENTO ANIMADO (ÍCONES SE MEXENDO / AGUARDE)
+  // =====================================================================
+  showLoadingOverlay(title = "Examinando Perícia com Rigor Técnico", phrase = "Lendo certidões, laudos médicos e fotos da moradia...") {
+    const overlay = document.getElementById("loadingOverlay");
+    const titleEl = document.getElementById("loadingTitle");
+    const phraseEl = document.getElementById("loadingPhrase");
+    if (titleEl) titleEl.textContent = title;
+    if (phraseEl) phraseEl.textContent = phrase;
+    if (overlay) overlay.classList.add("open");
+  }
+
+  hideLoadingOverlay() {
+    const overlay = document.getElementById("loadingOverlay");
+    if (overlay) overlay.classList.remove("open");
   }
 
   showToast(message) {
