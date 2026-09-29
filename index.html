@@ -81,11 +81,6 @@
         <span class="hide-mobile">Perícias Salvas</span>
       </button>
 
-      <button id="btnSettings" class="btn-header" title="Configurações avançadas">
-        <span>⚙️</span>
-        <span class="hide-mobile">Config</span>
-      </button>
-
       <button id="btnDownloadPdfTop" class="btn-header hide-mobile" onclick="app.exportToPdf()" title="Baixar diretamente em PDF">
         <span>📄</span>
         <span>Baixar PDF</span>
@@ -415,39 +410,6 @@
     </div>
   </div>
 
-  <!-- =====================================================================
-       TELA DE ATIVAÇÃO ÚNICA DA CHAVE GEMINI (PRIMEIRO USO)
-       ===================================================================== -->
-  <div class="onboarding-overlay" id="onboardingModal">
-    <div class="onboarding-card">
-      <div class="onboarding-retro-badge">✦ ATIVAÇÃO ÚNICA ✦</div>
-      <h2>Ativar Inteligência Artificial no Computador</h2>
-      <p class="onboarding-desc">
-        O <strong>Visum Social</strong> analisa fotos da visita domiciliar e laudos médicos automaticamente. 
-        Cole sua chave gratuita do Google Gemini abaixo — <strong>você só precisará fazer isso uma única vez!</strong>
-      </p>
-
-      <div class="onboarding-input-box">
-        <label for="onboardingApiKeyInput">Sua Chave Gratuita (começa com AIzaSy...):</label>
-        <div class="input-with-paste">
-          <input type="password" id="onboardingApiKeyInput" class="form-control" placeholder="Cole aqui: AIzaSy..." autocomplete="off">
-          <button type="button" class="btn-paste-action" onclick="app.pasteKeyToOnboarding()" title="Colar da área de transferência">📋 Colar</button>
-        </div>
-        <small class="onboarding-hint">
-          🔑 Fica gravada permanentemente no seu aplicativo. Nunca mais será solicitada.
-        </small>
-      </div>
-
-      <div class="onboarding-actions">
-        <button type="button" class="btn-onboarding-primary" onclick="app.saveOnboardingKey()">
-          <span>⚡</span> Salvar Chave e Iniciar Perícias
-        </button>
-        <button type="button" class="btn-onboarding-secondary" onclick="app.skipOnboarding()">
-          Continuar no Modo Inteligente sem Chave
-        </button>
-      </div>
-    </div>
-  </div>
 
   <!-- =====================================================================
        OVERLAY DE PROCESSAMENTO ANIMADO (ÍCONES MEXENDO / AGUARDE)

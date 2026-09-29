@@ -11,7 +11,13 @@ class PericiaApp {
     if (!this.formData.anexos) this.formData.anexos = [];
     this.stagedFiles = [];
     this.chatHistory = [];
-    this.apiKey = localStorage.getItem("gemini_api_key") || "";
+    let storedKey = localStorage.getItem("gemini_api_key") || "";
+    // Se a chave for um token OAuth ou inválida, limpa para usar a IA automática do servidor
+    if (storedKey && !storedKey.startsWith("AIzaSy")) {
+      localStorage.removeItem("gemini_api_key");
+      storedKey = "";
+    }
+    this.apiKey = storedKey;
     let storedModel = localStorage.getItem("gemini_model");
     const VALID_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-pro", "gemini-1.5-pro"];
     if (!storedModel || !VALID_MODELS.includes(storedModel)) {
@@ -171,13 +177,15 @@ class PericiaApp {
     // Tema
     this.btnThemeToggle.addEventListener("click", () => this.toggleTheme());
 
-    // Configurações
-    this.btnSettings.addEventListener("click", () => this.openSettingsModal());
-    this.btnCloseModal.addEventListener("click", () => this.closeSettingsModal());
-    this.btnSaveSettings.addEventListener("click", () => this.saveSettings());
-    this.settingsModal.addEventListener("click", (e) => {
-      if (e.target === this.settingsModal) this.closeSettingsModal();
-    });
+    // Configurações (opcional)
+    if (this.btnSettings) this.btnSettings.addEventListener("click", () => this.openSettingsModal());
+    if (this.btnCloseModal) this.btnCloseModal.addEventListener("click", () => this.closeSettingsModal());
+    if (this.btnSaveSettings) this.btnSaveSettings.addEventListener("click", () => this.saveSettings());
+    if (this.settingsModal) {
+      this.settingsModal.addEventListener("click", (e) => {
+        if (e.target === this.settingsModal) this.closeSettingsModal();
+      });
+    }
 
     // Alternar visualização (Chat vs Documento completo)
     if (this.btnToggleSplit) {
