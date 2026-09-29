@@ -1,0 +1,19 @@
+{
+  "name": "Visum Social - Perícias Judiciais",
+  "short_name": "Visum Social",
+  "description": "Plataforma Inteligente de Perícias Socioeconômicas Judiciais BPC/LOAS para Assistentes Sociais",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0c4a6e",
+  "theme_color": "#0c4a6e",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "visum_social_logo.jpg",
+      "sizes": "192x192 512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities", "government"]
+}
