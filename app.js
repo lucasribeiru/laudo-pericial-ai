@@ -959,9 +959,14 @@ Todas as seções do **Formulário de Perícia Socioeconômica (Anexo IV)** fora
 
     await new Promise(r => setTimeout(r, 650));
 
-    // ISOLAMENTO TOTAL: laudo limpo, preenchendo estritamente os dados informados
-    const cleanForm = JSON.parse(JSON.stringify(DEFAULT_FORM_DATA));
-    const text = userText || "";
+    // Concatena o texto digitado pelo usuário com todo o texto extraído dos PDFs
+    let fullContent = userText || "";
+    for (const f of files) {
+      if (f.extractedText) {
+        fullContent += "\n\n[CONTEÚDO DO ARQUIVO " + f.name + "]:\n" + f.extractedText;
+      }
+    }
+    const text = fullContent;
 
     const extractByRegex = (patterns) => {
       for (const p of patterns) {
