@@ -1,0 +1,114 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Perfil do perito assistente social autenticado",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Identificador único do usuário no Firebase Auth"
+        },
+        "email": {
+          "type": "string",
+          "description": "E-mail de autenticação Google"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Nome do perito"
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Foto de perfil do perito"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp de cadastro no sistema"
+        }
+      },
+      "required": ["uid", "email"]
+    },
+    "Pericia": {
+      "title": "Pericia",
+      "description": "Laudo pericial socioeconômico judicial oficial (BPC/LOAS)",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identificador único do laudo pericial"
+        },
+        "userId": {
+          "type": "string",
+          "description": "UID do perito assistente social proprietário do laudo"
+        },
+        "numero_processo": {
+          "type": "string",
+          "description": "Número do processo da Justiça Federal"
+        },
+        "nome_periciado": {
+          "type": "string",
+          "description": "Nome completo da parte autora/periciada"
+        },
+        "cpf_periciado": {
+          "type": "string",
+          "description": "CPF do periciado"
+        },
+        "municipio": {
+          "type": "string",
+          "description": "Município da comarca ou visita"
+        },
+        "uf": {
+          "type": "string",
+          "description": "Estado / Seção Judiciária (ex: AP)"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status do laudo: rascunho ou concluido"
+        },
+        "perito_nome": {
+          "type": "string",
+          "description": "Nome do perito assistente social"
+        },
+        "perito_cress": {
+          "type": "string",
+          "description": "Registro profissional no CRESS"
+        },
+        "renda_total": {
+          "type": "number",
+          "description": "Renda bruta familiar apurada"
+        },
+        "renda_per_capita": {
+          "type": "number",
+          "description": "Renda per capita calculada para o critério do BPC/LOAS"
+        },
+        "parecer_favoravel": {
+          "type": "boolean",
+          "description": "Parecer técnico conclusivo favorável ou não"
+        },
+        "form_data": {
+          "type": "object",
+          "description": "Estrutura JSON completa do formulário judicial de 7 páginas"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Data e hora de criação"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Data e hora da última modificação"
+        }
+      },
+      "required": ["userId", "nome_periciado"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Coleção de perfis de peritos autenticados"
+    },
+    "/users/{userId}/pericias/{periciaId}": {
+      "schema": "Pericia",
+      "description": "Subcoleção isolada de perícias judiciais de cada perito autenticado"
+    }
+  }
+}

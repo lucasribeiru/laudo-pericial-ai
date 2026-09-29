@@ -141,37 +141,94 @@ const DEFAULT_FORM_DATA = {
 };
 
 /**
- * Função utilitária para cálculo de Renda Per Capita conforme Art. 20 da LOAS (Lei nº 8.742/93)
+ * SALÁRIO MÍNIMO DE REFERÊNCIA NACIONAL
+ * Vigência atual (2025/2026): R$ 1.518,00
+ * 1/4 Salário Mínimo (Critério Objetivo LOAS): R$ 379,50
+ * 1/2 Salário Mínimo (Critério Jurisprudencial STF / Tema 27): R$ 759,00
  */
-function calcularRendaPerCapita(membrosFamilia, salarioMinimo = 1412.00) {
-  if (!Array.isArray(membrosFamilia) || membrosFamilia.length === 0) {
-    return {
-      totalMembros: 1,
-      rendaTotal: 0,
-      rendaPerCapita: 0,
-      limiteUmQuartoSM: salarioMinimo / 4,
-      atendeCriterioObjetivo: true
-    };
+const SALARIO_MINIMO_PADRAO = 1518.00;
+
+/**
+ * Função utilitária para cálculo de Renda Per Capita e Checklist de Elegibilidade BPC/LOAS
+ * Conforme Art. 20 da LOAS (Lei nº 8.742/93), Art. 20-B (Lei 14.176/21) e Jurisprudência do STF (RE 567.985 / Tema 27)
+ */
+function calcularRendaPerCapita(membrosFamilia, salarioMinimo = SALARIO_MINIMO_PADRAO, despesasDedutiveis = 0) {
+  let totalMembros = 1;
+  let rendaBruta = 0;
+
+  if (Array.isArray(membrosFamilia) && membrosFamilia.length > 0) {
+    totalMembros = membrosFamilia.length;
+    rendaBruta = membrosFamilia.reduce((acc, curr) => {
+      const val = typeof curr.rendaMensal === "number" ? curr.rendaMensal : parseFloat(String(curr.rendaMensal).replace(/[^\d.-]/g, "")) || 0;
+      return acc + val;
+    }, 0);
+  } else if (typeof membrosFamilia === "number") {
+    totalMembros = Math.max(1, parseInt(membrosFamilia) || 1);
   }
 
-  const totalMembros = membrosFamilia.length;
-  const rendaTotal = membrosFamilia.reduce((acc, curr) => {
-    const val = typeof curr.rendaMensal === "number" ? curr.rendaMensal : parseFloat(String(curr.rendaMensal).replace(/[^\d.-]/g, "")) || 0;
-    return acc + val;
-  }, 0);
+  const sm = typeof salarioMinimo === "number" && salarioMinimo > 0 ? salarioMinimo : SALARIO_MINIMO_PADRAO;
+  const deducao = typeof despesasDedutiveis === "number" ? Math.max(0, despesasDedutiveis) : 0;
+  const rendaLiquidaTotal = Math.max(0, rendaBruta - deducao);
 
-  const rendaPerCapita = totalMembros > 0 ? (rendaTotal / totalMembros) : 0;
-  const limiteUmQuarto = salarioMinimo / 4;
+  const rendaPerCapitaBruta = totalMembros > 0 ? (rendaBruta / totalMembros) : 0;
+  const rendaPerCapitaLiquida = totalMembros > 0 ? (rendaLiquidaTotal / totalMembros) : 0;
+  
+  const limiteUmQuarto = sm / 4; // R$ 379,50
+  const limiteMeio = sm / 2;     // R$ 759,00
+
+  // Análise de Conformidade com o STF
+  let statusSTF = "CONFORME_OBJETIVO";
+  let tituloAlerta = "CONFORME CRITÉRIO LEGAL OBJETIVO (≤ 1/4 SM)";
+  let nivelAlerta = "verde"; // verde, amarelo, vermelho
+  let textoParecer = "";
+  let resumoFundamentacao = "";
+
+  if (rendaPerCapitaLiquida <= limiteUmQuarto) {
+    statusSTF = "CONFORME_OBJETIVO";
+    tituloAlerta = "CONFORME CRITÉRIO OBJETIVO DA LOAS (≤ 1/4 SM)";
+    nivelAlerta = "verde";
+    resumoFundamentacao = `Renda per capita de R$ ${rendaPerCapitaLiquida.toFixed(2)} atende diretamente ao critério objetivo previsto no art. 20, § 3º da Lei nº 8.742/93 (inferior a 1/4 do salário mínimo = R$ ${limiteUmQuarto.toFixed(2)}), havendo presunção legal absoluta de miserabilidade social.`;
+    textoParecer = `A renda familiar per capita mensal apurada é de R$ ${rendaPerCapitaLiquida.toFixed(2)}, valor que se enquadra perfeitamente no limite objetivo de 1/4 do salário mínimo vigente (R$ ${limiteUmQuarto.toFixed(2)}), preenchendo de forma inequívoca o requisito socioeconômico da LOAS.`;
+  } else if (rendaPerCapitaLiquida <= limiteMeio) {
+    statusSTF = "ELEGIVEL_STF";
+    tituloAlerta = "ELEGÍVEL POR CRITÉRIO JURISPRUDENCIAL DO STF (TEMA 27)";
+    nivelAlerta = "amarelo";
+    resumoFundamentacao = `Renda per capita de R$ ${rendaPerCapitaLiquida.toFixed(2)} supera o teto estrito de 1/4 SM (R$ ${limiteUmQuarto.toFixed(2)}), porém situa-se abaixo de 1/2 SM (R$ ${limiteMeio.toFixed(2)}). O Supremo Tribunal Federal (RE 567.985/MT - Tema 27) declarou a inconstitucionalidade parcial do critério absoluto de 1/4 SM, autorizando a concessão judicial quando o Estudo Social comprovar vulnerabilidade e despesas contínuas com saúde.`;
+    textoParecer = `Embora a renda per capita de R$ ${rendaPerCapitaLiquida.toFixed(2)} ultrapasse o patamar legal de 1/4 do salário mínimo, incide na espécie o entendimento vinculante do STF no RE 567.985/MT (Tema 27), que flexibilizou a aferição da hipossuficiência econômica. A precariedade habitacional, a ausência de patrimônio e a necessidade de gastos indispensáveis com a sobrevivência comprovam a miserabilidade fática no caso concreto.`;
+  } else {
+    statusSTF = "EXCEDE_CONVENCIONAL";
+    tituloAlerta = "RENDA SUPERA 1/2 SM - REQUER COMPROVAÇÃO DE DEDUÇÕES GRAVES";
+    nivelAlerta = "vermelho";
+    resumoFundamentacao = `Renda per capita de R$ ${rendaPerCapitaLiquida.toFixed(2)} supera o limite jurisprudencial de 1/2 SM (R$ ${limiteMeio.toFixed(2)}). A concessão judicial é cabível mediante demonstração contábil de despesas médicas e tratamentos de alto custo (Art. 20-B da LOAS e Súmula 79 da TNU) que reduzam a renda disponível ao mínimo existencial.`;
+    textoParecer = `A renda per capita calculada é de R$ ${rendaPerCapitaLiquida.toFixed(2)}. Para fins de enquadramento jurisprudencial, faz-se necessária a dedução pormenorizada de despesas médicas, medicamentos não fornecidos pelo SUS, fraldas e tratamentos contínuos indispensáveis, mitigando a renda disponível do núcleo familiar.`;
+  }
 
   return {
     totalMembros,
-    rendaTotal: Number(rendaTotal.toFixed(2)),
-    rendaPerCapita: Number(rendaPerCapita.toFixed(2)),
+    rendaBruta: Number(rendaBruta.toFixed(2)),
+    despesasDedutiveis: Number(deducao.toFixed(2)),
+    rendaTotal: Number(rendaLiquidaTotal.toFixed(2)),
+    rendaPerCapita: Number(rendaPerCapitaLiquida.toFixed(2)),
+    rendaPerCapitaBruta: Number(rendaPerCapitaBruta.toFixed(2)),
+    salarioMinimo: Number(sm.toFixed(2)),
     limiteUmQuartoSM: Number(limiteUmQuarto.toFixed(2)),
-    atendeCriterioObjetivo: rendaPerCapita <= limiteUmQuarto
+    limiteMeioSM: Number(limiteMeio.toFixed(2)),
+    atendeCriterioObjetivo: rendaPerCapitaLiquida <= limiteUmQuarto,
+    elegivelSTF: rendaPerCapitaLiquida <= limiteMeio,
+    statusSTF,
+    tituloAlerta,
+    nivelAlerta,
+    resumoFundamentacao,
+    textoParecer
   };
 }
 
+if (typeof globalThis !== "undefined") {
+  globalThis.DEFAULT_FORM_DATA = DEFAULT_FORM_DATA;
+  globalThis.SALARIO_MINIMO_PADRAO = SALARIO_MINIMO_PADRAO;
+  globalThis.calcularRendaPerCapita = calcularRendaPerCapita;
+}
+
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { DEFAULT_FORM_DATA, calcularRendaPerCapita };
+  module.exports = { DEFAULT_FORM_DATA, SALARIO_MINIMO_PADRAO, calcularRendaPerCapita };
 }

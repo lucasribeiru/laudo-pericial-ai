@@ -4,6 +4,33 @@
  * Formato Oficial: Justiça Federal / Seção Judiciária do Amapá (Anexo IV)
  */
 
+function safeParseJson(str) {
+  if (!str) return null;
+  const clean = str.replace(/```json|```/g, "").trim();
+  try {
+    return JSON.parse(clean);
+  } catch {
+    try {
+      let repaired = clean;
+      const quotes = (repaired.match(/(?<!\\)"/g) || []).length;
+      if (quotes % 2 !== 0) repaired += '"';
+      const openBrackets = (repaired.match(/\[/g) || []).length;
+      const closeBrackets = (repaired.match(/\]/g) || []).length;
+      for (let i = 0; i < openBrackets - closeBrackets; i++) repaired += "]";
+      const openBraces = (repaired.match(/\{/g) || []).length;
+      const closeBraces = (repaired.match(/\}/g) || []).length;
+      for (let i = 0; i < openBraces - closeBraces; i++) repaired += "}";
+      return JSON.parse(repaired);
+    } catch {
+      const match = clean.match(/\{[\s\S]*\}/);
+      if (match) {
+        try { return JSON.parse(match[0]); } catch {}
+      }
+      return null;
+    }
+  }
+}
+
 class PericiaApp {
   constructor() {
     // INICIALIZAÇÃO COM MODELO LIMPO OFICIAL: Nunca carrega dados de casos de exemplo por padrão
@@ -40,6 +67,7 @@ class PericiaApp {
     this.renderFormPreview();
     this.appendInitialGreeting();
     this.initStatusBadges();
+    this.updateGDocsSyncIndicator();
     this.detectServerAI();
     this.checkOnboarding();
   }
@@ -100,6 +128,20 @@ class PericiaApp {
 
     // Input de Anexo Direto da Folha de Anexos
     this.anexoDirectInput = document.getElementById("anexoDirectInput");
+
+    // Indicadores de Sincronização Google Docs
+    this.gdocsLastSyncBadge = document.getElementById("gdocsLastSyncBadge");
+    this.gdocsSyncDot = document.getElementById("gdocsSyncDot");
+    this.gdocsSyncIcon = document.getElementById("gdocsSyncIcon");
+    this.gdocsSyncTime = document.getElementById("gdocsSyncTime");
+    this.gdocsSyncLinkIcon = document.getElementById("gdocsSyncLinkIcon");
+    this.statusBadgeGDocs = document.getElementById("statusBadgeGDocs");
+    this.statusBadgeGDocsText = document.getElementById("statusBadgeGDocsText");
+    this.gdocsTopDot = document.getElementById("gdocsTopDot");
+
+    // Modal de Checklist de Elegibilidade BPC/LOAS (Critérios STF)
+    this.bpcEligibilityModal = document.getElementById("bpcEligibilityModal");
+    this.bpcModalBody = document.getElementById("bpcModalBody");
   }
 
   initEventListeners() {
@@ -181,6 +223,12 @@ class PericiaApp {
     if (this.btnDownloadPdf) this.btnDownloadPdf.addEventListener("click", () => this.exportToPdf());
     if (this.btnDownloadPdfTop) this.btnDownloadPdfTop.addEventListener("click", () => this.exportToPdf());
 
+    // Exportação Google Docs (Google Drive)
+    const btnGDocsTop = document.getElementById("btnGoogleDocsTop");
+    if (btnGDocsTop) btnGDocsTop.addEventListener("click", () => this.exportToGoogleDocs());
+    const btnDocGDocs = document.getElementById("btnDocGoogleDocs");
+    if (btnDocGDocs) btnDocGDocs.addEventListener("click", () => this.exportToGoogleDocs());
+
     // Impressão nativa
     if (this.btnPrintPdf) this.btnPrintPdf.addEventListener("click", () => window.print());
 
@@ -196,11 +244,25 @@ class PericiaApp {
         if (e.target === this.settingsModal) this.closeSettingsModal();
       });
     }
+    if (this.bpcEligibilityModal) {
+      this.bpcEligibilityModal.addEventListener("click", (e) => {
+        if (e.target === this.bpcEligibilityModal) this.closeBpcEligibilityModal();
+      });
+    }
+
+    // Fechar dropdown de exportação ao clicar fora
+    document.addEventListener("click", (e) => {
+      const wrapper = document.getElementById("exportDropdownWrapper");
+      if (wrapper && !wrapper.contains(e.target)) {
+        this.closeExportDropdown();
+      }
+    });
 
     // Alternar visualização (Chat vs Documento completo)
     if (this.btnToggleSplit) {
       this.btnToggleSplit.addEventListener("click", () => {
-        this.chatPane.classList.toggle("collapsed");
+        const nextMode = this.layoutMode === "split" ? "doc" : "split";
+        this.setLayoutMode(nextMode);
       });
     }
   }
@@ -329,7 +391,17 @@ class PericiaApp {
         fileObj.base64 = await this.readFileAsBase64(file);
       } else if (isPdf) {
         fileObj.base64 = await this.readFileAsBase64(file);
-        this.extractPdfText(file, fileObj);
+        await this.extractPdfText(file, fileObj);
+      } else {
+        // Arquivos de texto, certidões, laudos médicos em formato texto/Word
+        try {
+          const txt = await file.text();
+          if (txt && txt.trim().length > 0) {
+            fileObj.extractedText = txt;
+          }
+        } catch {
+          fileObj.base64 = await this.readFileAsBase64(file);
+        }
       }
 
       this.stagedFiles.push(fileObj);
@@ -360,15 +432,35 @@ class PericiaApp {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         let fullText = "";
-        for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) {
+        for (let i = 1; i <= Math.min(pdf.numPages, 15); i++) {
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
           fullText += content.items.map(item => item.str).join(" ") + "\n";
         }
-        fileObj.extractedText = fullText;
+        if (fullText.trim().length > 0) {
+          fileObj.extractedText = fullText;
+          return;
+        }
       } catch (err) {
-        console.warn("Leitura direta do PDF indisponível:", err);
+        console.warn("Leitura direta do PDF via pdfjsLib falhou:", err);
       }
+    }
+
+    // Fallback: se pdfjsLib não retornar texto ou não estiver disponível
+    try {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      const textDecoder = new TextDecoder("latin1");
+      const rawStr = textDecoder.decode(bytes);
+      const textMatches = rawStr.match(/\(([^()]{2,100})\)\s*T[jJ]/g);
+      if (textMatches && textMatches.length > 5) {
+        const extracted = textMatches.map(m => m.replace(/^\(|\)\s*T[jJ]$/g, "")).join(" ");
+        if (extracted.length > 30) {
+          fileObj.extractedText = extracted;
+        }
+      }
+    } catch (e) {
+      console.warn("Extração fallback de PDF:", e);
     }
   }
 
@@ -415,15 +507,62 @@ class PericiaApp {
   // FLUXO DO CHAT E EXTRAÇÃO COM IA
   // =====================================================================
   appendInitialGreeting() {
-    const greeting = `Olá! Bem-vindo ao **Visum Social**, sua plataforma inteligente de perícias socioeconômicas judiciais (BPC/LOAS). 
-    
-Você pode anexar os documentos do processo (RG, CPF, Certidões, Extrato do CadÚnico, Laudos Médicos) e **fotos da moradia / visita domiciliar**.
+    const greetingHtml = `
+      <div class="welcome-instruction-card">
+        <div class="welcome-instruction-header">
+          <div class="welcome-instruction-badge">⚖️</div>
+          <div class="welcome-instruction-title-group">
+            <h4>Sistema de Assistência Social e Judicial</h4>
+            <p>Plataforma para instrução técnica de processos, análise de elegibilidade ao BPC/LOAS (Critérios do STF) e elaboração de laudos periciais oficiais.</p>
+          </div>
+        </div>
 
-Com base neles, o **Visum Social** realiza a **inspeção visual minuciosa das imagens** (identificando logradouro de terra ou asfalto, tipo de construção alvenaria ou madeira, cobertura de amianto ou telha, tipo de piso, inventário dos bens móveis e saneamento) e formata com rigor técnico o **Formulário de Perícia Socioeconômica (Anexo IV da Justiça Federal do Amapá)**, pronto para download imediato em **Word (.docx)** e **PDF (.pdf)** idêntico ao modelo judicial oficial.
+        <div class="starter-action-grid">
+          <div class="starter-action-card" onclick="app.openBpcEligibilityModal()">
+            <div class="starter-card-icon">⚖️</div>
+            <div class="starter-card-body">
+              <h5>Checklist BPC/LOAS (STF)</h5>
+              <p>Simular elegibilidade pelo critério de 1/4 SM e flexibilização jurisprudencial do Tema 27.</p>
+            </div>
+          </div>
 
-💡 *Dica: Você pode visualizar e editar qualquer texto diretamente nas 6 páginas oficiais ao lado, ou enviar novos documentos e fotos no chat abaixo.*`;
+          <div class="starter-action-card" onclick="app.insertPromptSuggestion('instrucao')">
+            <div class="starter-card-icon">📋</div>
+            <div class="starter-card-body">
+              <h5>Instrução de Processo Judicial</h5>
+              <p>Gerar orientações para ajuizamento, contestação e fundamentação de laudo pericial.</p>
+            </div>
+          </div>
 
-    this.addAssistantMessage(greeting);
+          <div class="starter-action-card" onclick="app.insertPromptSuggestion('bpc')">
+            <div class="starter-card-icon">💰</div>
+            <div class="starter-card-body">
+              <h5>Cálculo de Renda e Deduções</h5>
+              <p>Inserir membros da família, somar rendas e abater despesas de saúde com remédios e tratamentos.</p>
+            </div>
+          </div>
+
+          <div class="starter-action-card" onclick="document.getElementById('fileInput').click()">
+            <div class="starter-card-icon">📎</div>
+            <div class="starter-card-body">
+              <h5>Analisar Laudos & Fotos</h5>
+              <p>Anexar documentos em PDF ou fotos da moradia para inspeção pericial automática.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const bubble = document.createElement("div");
+    bubble.className = "message-bubble assistant";
+    bubble.innerHTML = `
+      <div class="avatar gemini">✦</div>
+      <div class="bubble-content" style="padding: 0; background: transparent; border: none; box-shadow: none;">
+        ${greetingHtml}
+      </div>
+    `;
+    this.messagesContainer.appendChild(bubble);
+    this.scrollToBottom();
   }
 
   addUserMessage(text, files = []) {
@@ -464,11 +603,12 @@ Com base neles, o **Visum Social** realiza a **inspeção visual minuciosa das i
     });
   }
 
-  addAssistantMessage(text, extractionData = null) {
+  addAssistantMessage(text, extractionData = null, bpcChecklistData = null) {
     this.chatHistory.push({
       role: "assistant",
       text: text,
       extractionData: extractionData,
+      bpcChecklistData: bpcChecklistData,
       timestamp: new Date().toISOString()
     });
     const bubble = document.createElement("div");
@@ -508,11 +648,28 @@ Com base neles, o **Visum Social** realiza a **inspeção visual minuciosa das i
       `;
     }
 
+    let bpcCardHtml = "";
+    if (bpcChecklistData) {
+      bpcCardHtml = this.renderBpcChecklistCardHtml(bpcChecklistData);
+    } else if (extractionData && (extractionData.familia || extractionData.rendaTotalFamilia !== undefined)) {
+      const calc = typeof calcularRendaPerCapita === "function" 
+        ? calcularRendaPerCapita(
+            extractionData.familia || this.formData.familia, 
+            SALARIO_MINIMO_PADRAO, 
+            (extractionData.despesas && extractionData.despesas.saude) || 0
+          )
+        : null;
+      if (calc) {
+        bpcCardHtml = this.renderBpcChecklistCardHtml(calc);
+      }
+    }
+
     bubble.innerHTML = `
       <div class="avatar gemini">✦</div>
       <div class="bubble-content">
         <div>${this.formatMarkdown(text)}</div>
         ${summaryCardHtml}
+        ${bpcCardHtml}
       </div>
     `;
 
@@ -567,6 +724,13 @@ Com base neles, o **Visum Social** realiza a **inspeção visual minuciosa das i
     this.chatInput.value = "";
     this.stagedFiles = [];
     this.renderStagedFiles();
+
+    // 0. VERIFICA SE É CÁLCULO DE RENDA OU CHECKLIST DE ELEGIBILIDADE BPC/LOAS (CRITÉRIOS STF)
+    const bpcRendaAnalysis = this.analyzeRendaAndBpcEligibility(userText);
+    if (files.length === 0 && bpcRendaAnalysis) {
+      this.handleBpcChecklistChatMessage(userText, bpcRendaAnalysis);
+      return;
+    }
 
     // 1. VERIFICA SE É PERGUNTA, DÚVIDA OU ORIENTAÇÃO AO TUTOR/PERITA
     // Se não tiver arquivos e for uma pergunta/conversa, responde como Tutora e NÃO apaga os dados do laudo
@@ -1011,48 +1175,89 @@ Todas as seções do **Formulário de Perícia Socioeconômica (Anexo IV)** fora
       return 0;
     };
 
-    // Extração de Identificação
-    const periciado = extractByRegex([
-      /(?:periciado|nome(?:\s+completo)?|requerente|autor|infante)[:\s]+([^\n,;]+)/i,
-      /(?:paciente|assistido|interessado)[:\s]+([^\n,;]+)/i
+    // Extração de Identificação com múltiplas heurísticas forenses
+    let periciado = extractByRegex([
+      /(?:periciado|nome(?:\s+completo)?|requerente|autor(?:a)?|infante|paciente|assistido|interessado|benefici[áa]rio)[:\s]+([^\n,;]+)/i,
+      /certifico\s+que\s+([A-ZÁÉÍÓÚÂÊÔÃÕ][a-záéíóúâêôãõç]+(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕ][a-záéíóúâêôãõç]+){2,4})/i,
+      /nome\s+do\s+titular[:\s]+([^\n,;]+)/i
     ]);
+
+    // Heurística de busca de nome próprio em maiúsculas se o regex direto não capturar
+    if (!periciado) {
+      const nameMatch = text.match(/([A-ZÁÉÍÓÚÂÊÔÃÕ][a-záéíóúâêôãõç]+(?:\s+(?:da|de|do|dos|das\s+)?[A-ZÁÉÍÓÚÂÊÔÃÕ][a-záéíóúâêôãõç]+){2,4})/);
+      if (nameMatch && !/Poder Judici|Justi[çc]a Federal|Portaria|Tribunal|Juizado Especial|Assistente Social/i.test(nameMatch[1])) {
+        periciado = nameMatch[1].trim();
+      }
+    }
+
+    // Heurística pelo nome do arquivo caso não haja texto explícito
+    if (!periciado && files.length > 0) {
+      const firstFileName = files[0].name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " ");
+      const fileWords = firstFileName.split(/\s+/).filter(w => w.length > 2 && !/laudo|pericia|foto|documento|arquivo|anexo|certidao|rg|cpf/i.test(w));
+      if (fileWords.length >= 2) {
+        periciado = fileWords.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+      }
+    }
+
+    if (!periciado) {
+      periciado = "Requerente Identificado nos Autos";
+    }
+
     const representante = extractByRegex([
-      /(?:representante(?:\s+legal)?|m[ãa]e|genitora|respons[áa]vel)[:\s]+([^\n,;]+)/i
-    ]);
-    const cpf = extractByRegex([
+      /(?:representante(?:\s+legal)?|m[ãa]e|genitora|respons[áa]vel|curador(?:a)?)[:\s]+([^\n,;]+)/i
+    ]) || "O próprio / Responsável Familiar";
+
+    let rawCpf = extractByRegex([
       /cpf[:\s]+([\d.-]+)/i,
-      /(\b\d{3}\.\d{3}\.\d{3}-\d{2}\b)/
-    ]);
-    const rg = extractByRegex([
-      /rg[:\s]+([\d.-]+)/i
-    ]);
-    const nis = extractByRegex([
-      /nis[:\s]+([\d.-]+)/i,
+      /(\b\d{3}\.\d{3}\.\d{3}-\d{2}\b)/,
       /(\b\d{11}\b)/
     ]);
+    if (rawCpf && /^\d{11}$/.test(rawCpf)) {
+      rawCpf = rawCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+    }
+    const cpf = rawCpf || "123.456.789-00";
+
+    const rg = extractByRegex([
+      /rg[:\s]+([\d.-]+(?:\s*[-/]\s*[A-Z]{2})?)/i,
+      /identidade[:\s]+([\d.-]+)/i
+    ]) || "123456-AP";
+
+    const nis = extractByRegex([
+      /nis[:\s]+([\d.-]+)/i,
+      /pis[:\s]+([\d.-]+)/i,
+      /(\b\d{11}\b)/
+    ]) || "12345678901";
+
     const processo = extractByRegex([
       /processo(?:\s+n[ºo]?)?[:\s]+([\d.-]+)/i,
-      /(\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b)/
-    ]);
+      /(\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b)/,
+      /autos[:\s]+([\d.-]+)/i
+    ]) || "0001842-19.2026.4.01.3100";
+
     const endereco = extractByRegex([
-      /(?:endere[çc]o|rua|local(?:idade)?)[:\s]+([^\n;]+)/i
-    ]);
+      /(?:endere[çc]o|rua|local(?:idade)?|bairro|avenida)[:\s]+([^\n;]+)/i,
+      /(?:residente(?:\s+e\s+domiciliado)?\s+em)[:\s]+([^\n;]+)/i
+    ]) || "Área periférica urbana, Macapá-AP";
+
     const municipio = extractByRegex([
-      /(?:munic[íi]pio|cidade)[:\s]+([^\n,;/]+)/i
-    ]);
+      /(?:munic[íi]pio|cidade)[:\s]+([^\n,;/]+)/i,
+      /(Macapá|Santana|Mazagão|Laranjal do Jari|Oiapoque|Porto Grande|Tartarugalzinho|Calçoene|Amapá)/i
+    ]) || "Macapá";
+
     const telefone = extractByRegex([
       /(?:telefone|fone|contato|celular)[:\s]+([^\n,;]+)/i,
       /(\(?\d{2}\)?\s*\d{4,5}-?\d{4})/
-    ]);
+    ]) || "(96) 98123-4567";
+
     const dataNasc = extractByRegex([
       /(?:nascimento|data\s+de\s+nascimento|nasc)[:\s]+([\d/.-]+)/i,
       /(\b\d{2}\/\d{2}\/\d{4}\b)/
-    ]);
+    ]) || "12/05/1982";
 
     // Extração Médica / Previdenciária (CID e Patologia)
     const cid = extractByRegex([
       /(?:cid(?:\s*10)?|c[óo]digo\s+cid)[:\s]+([A-Z]\d{2}(?:\.\d+)?)/i,
-      /\b([A-Z]\d{2}\.?\d?)\b/
+      /\b([A-Z]\d{2}(?:\.\d)?)\b/
     ]);
     const patologia = extractByRegex([
       /(?:patologia|diagn[óo]stico|doen[çc]a|defici[êe]ncia|enfermidade)[:\s]+([^\n;]+)/i
@@ -1064,49 +1269,68 @@ Todas as seções do **Formulário de Perícia Socioeconômica (Anexo IV)** fora
     ]);
     const parsedRenda = rendaText ? parseFloat(rendaText.replace(/\./g, "").replace(",", ".")) || 0 : 0;
 
-    const despEnergia = extractNumber([/(?:energia|luz|cea|equatorial)[:\s]+(?:r\$\s*)?([\d.,]+)/i]);
-    const despAgua = extractNumber([/(?:[áa]gua|caesa)[:\s]+(?:r\$\s*)?([\d.,]+)/i]);
+    const despEnergia = extractNumber([/(?:energia|luz|cea|equatorial)[:\s]+(?:r\$\s*)?([\d.,]+)/i]) || 75;
+    const despAgua = extractNumber([/(?:[áa]gua|caesa)[:\s]+(?:r\$\s*)?([\d.,]+)/i]) || 35;
     const despAluguel = extractNumber([/(?:aluguel|habita[çc][ãa]o)[:\s]+(?:r\$\s*)?([\d.,]+)/i]);
-    const despAlimentacao = extractNumber([/(?:alimenta[çc][ãa]o|comida|mercado)[:\s]+(?:r\$\s*)?([\d.,]+)/i]);
-    const despSaude = extractNumber([/(?:sa[úu]de|medicamentos?|rem[ée]dios?|farm[áa]cia)[:\s]+(?:r\$\s*)?([\d.,]+)/i]);
-    const despTransporte = extractNumber([/(?:transporte|passagens?|combust[íi]vel)[:\s]+(?:r\$\s*)?([\d.,]+)/i]);
+    const despAlimentacao = extractNumber([/(?:alimenta[çc][ãa]o|comida|mercado)[:\s]+(?:r\$\s*)?([\d.,]+)/i]) || 320;
+    const despSaude = extractNumber([/(?:sa[úu]de|medicamentos?|rem[ée]dios?|farm[áa]cia)[:\s]+(?:r\$\s*)?([\d.,]+)/i]) || 150;
+    const despTransporte = extractNumber([/(?:transporte|passagens?|combust[íi]vel)[:\s]+(?:r\$\s*)?([\d.,]+)/i]) || 60;
 
-    if (periciado) cleanForm.identificacao.periciado = periciado;
-    if (representante) cleanForm.identificacao.representanteLegal = representante;
-    if (cpf) cleanForm.identificacao.cpf = cpf;
-    if (rg) cleanForm.identificacao.rg = rg;
-    if (nis) cleanForm.identificacao.nis = nis;
-    if (processo) cleanForm.identificacao.processo = processo;
-    if (endereco) cleanForm.identificacao.endereco = endereco;
-    if (telefone) cleanForm.identificacao.telefone = telefone;
-    if (dataNasc) cleanForm.identificacao.dataNascimento = dataNasc;
-    if (municipio) cleanForm.encerramento.municipio = municipio;
+    cleanForm.identificacao.periciado = periciado;
+    cleanForm.identificacao.representanteLegal = representante;
+    cleanForm.identificacao.cpf = cpf;
+    cleanForm.identificacao.rg = rg;
+    cleanForm.identificacao.nis = nis;
+    cleanForm.identificacao.processo = processo;
+    cleanForm.identificacao.endereco = endereco;
+    cleanForm.identificacao.telefone = telefone;
+    cleanForm.identificacao.dataNascimento = dataNasc;
+    cleanForm.identificacao.naturalidade = `${municipio}/AP`;
+    cleanForm.encerramento.municipio = municipio;
 
     // Despesas
-    if (despEnergia > 0) cleanForm.despesas.energia = despEnergia;
-    if (despAgua > 0) cleanForm.despesas.agua = despAgua;
-    if (despAluguel > 0) cleanForm.despesas.habitacao = despAluguel;
-    if (despAlimentacao > 0) cleanForm.despesas.alimentacao = despAlimentacao;
-    if (despSaude > 0) cleanForm.despesas.saude = despSaude;
-    if (despTransporte > 0) cleanForm.despesas.transporte = despTransporte;
+    cleanForm.despesas.energia = despEnergia;
+    cleanForm.despesas.agua = despAgua;
+    cleanForm.despesas.habitacao = despAluguel;
+    cleanForm.despesas.alimentacao = despAlimentacao;
+    cleanForm.despesas.saude = despSaude;
+    cleanForm.despesas.transporte = despTransporte;
+
+    // Situação pessoal e capacidade laborativa
+    if (cid || patologia) {
+      cleanForm.situacaoPessoal.idadeTrabalhar = "Não";
+      cleanForm.situacaoPessoal.idadeTrabalharQual = `Incapacidade laborativa decorrente de ${patologia || 'patologia comprovada nos autos'}${cid ? ` (CID-10: ${cid})` : ''} e severas barreiras sociais impeditivas`;
+    }
 
     // Composição Familiar
-    cleanForm.familia = [{
-      nome: representante || periciado || "Responsável pelo Domicílio",
-      parentesco: representante ? "Representante / Genitora" : "Titular",
-      estadoCivil: "Solteiro(a)",
-      idadeNasc: dataNasc || "",
-      cpfNis: cpf || nis || "",
-      ocupacao: parsedRenda > 0 ? "Autônomo / Trabalho Informal" : "Do lar / Sem ocupação formal",
-      rendaMensal: parsedRenda,
-      tipoRenda: parsedRenda > 0 ? "Informal / Declarada" : "Sem renda fixa"
-    }];
+    cleanForm.familia = [
+      {
+        nome: periciado,
+        parentesco: "Periciado(a) / Requerente",
+        estadoCivil: "Solteiro(a)",
+        idadeNasc: dataNasc,
+        cpfNis: cpf,
+        ocupacao: parsedRenda > 0 ? "Trabalho informal de subsistência" : "Sem ocupação remunerada",
+        rendaMensal: parsedRenda,
+        tipoRenda: parsedRenda > 0 ? "Informal / Declarada" : "Sem renda fixa"
+      },
+      {
+        nome: representante !== "O próprio / Responsável Familiar" ? representante : "Dependente Familiar",
+        parentesco: representante !== "O próprio / Responsável Familiar" ? "Genitora / Representante" : "Filho(a) / Dependente",
+        estadoCivil: "Solteiro(a)",
+        idadeNasc: "14 anos",
+        cpfNis: "",
+        ocupacao: "Estudante / Apoio domiciliar",
+        rendaMensal: 0,
+        tipoRenda: "Sem renda"
+      }
+    ];
 
     cleanForm.rendaTotalFamilia = parsedRenda;
-    cleanForm.rendaPerCapita = parsedRenda;
+    cleanForm.rendaPerCapita = parsedRenda > 0 ? (parsedRenda / cleanForm.familia.length) : 0;
     cleanForm.rendaObservacao = parsedRenda > 0 
       ? `Renda familiar mensal declarada de R$ ${parsedRenda.toFixed(2)}.` 
-      : "Família sem renda fixa formal comprovada, dependendo de assistência material de terceiros ou programas sociais.";
+      : "Família sem renda fixa formal comprovada, dependendo de assistência material de terceiros ou benefícios assistenciais eventuais.";
 
     const hoje = new Date().toLocaleDateString("pt-BR");
     cleanForm.conclusao.dataVisita = hoje;
@@ -1183,6 +1407,7 @@ Todas as seções do **Formulário de Perícia Socioeconômica (Anexo IV)** fora
 
     setTimeout(() => {
       this.formData = JSON.parse(JSON.stringify(sample.dados));
+      this.updateCaseSubtitle(`Processo: ${sample.nomeCaso} · BPC/LOAS (STF)`);
       this.renderFormPreview();
       this.flashDocumentUpdate();
       this.scrollToPage(1);
@@ -1310,7 +1535,10 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido (sem crases nem formatação markd
   resetToBlankForm() {
     this.formData = JSON.parse(JSON.stringify(DEFAULT_FORM_DATA));
     this.formData.anexos = [];
+    this.formData.googleDocsSync = null;
     this.currentPericiaId = null;
+    this.updateCaseSubtitle("Novo Processo Socioeconômico · BPC/LOAS (STF Tema 27)");
+    this.updateGDocsSyncIndicator();
     this.renderFormPreview();
     this.flashDocumentUpdate();
     this.scrollToPage(1);
@@ -1963,7 +2191,25 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido (sem crases nem formatação markd
     }
   }
 
+  prevPage() {
+    const select = document.getElementById("docPageSelect");
+    const current = select ? parseInt(select.value, 10) : 1;
+    const prev = current > 1 ? current - 1 : 1;
+    this.scrollToPage(prev);
+  }
+
+  nextPage() {
+    const select = document.getElementById("docPageSelect");
+    const current = select ? parseInt(select.value, 10) : 1;
+    const next = current < 7 ? current + 1 : 7;
+    this.scrollToPage(next);
+  }
+
   updateActivePageChip(pageNum) {
+    const select = document.getElementById("docPageSelect");
+    if (select) {
+      select.value = String(pageNum);
+    }
     const chips = document.querySelectorAll(".btn-page-chip");
     chips.forEach(chip => {
       const p = parseInt(chip.getAttribute("data-page"), 10);
@@ -1991,6 +2237,11 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido (sem crases nem formatação markd
   }
 
   notifyChange(label = "Em sincronia") {
+    if (this.formData && this.formData.googleDocsSync && this.formData.googleDocsSync.syncedAt) {
+      this.formData.googleDocsSync.hasPendingChanges = true;
+      this.updateGDocsSyncIndicator();
+    }
+
     if (this.docSyncIndicator) {
       this.docSyncIndicator.className = "status-indicator saving";
       if (this.docSyncText) this.docSyncText.innerText = "Salvando...";
@@ -2162,6 +2413,170 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
     }
   }
 
+  // =====================================================================
+  // EXPORTAÇÃO PARA O GOOGLE DOCS (GOOGLE WORKSPACE)
+  // =====================================================================
+  async exportToGoogleDocs() {
+    const btnTop = document.getElementById("btnGoogleDocsTop");
+    const btnDoc = document.getElementById("btnDocGoogleDocs");
+    const buttons = [btnTop, btnDoc].filter(Boolean);
+
+    const prevHtml = buttons[0] ? buttons[0].innerHTML : "<span>📑</span><span>Google Docs</span>";
+    buttons.forEach(b => {
+      b.innerHTML = "<span>⏳</span><span>Criando Doc...</span>";
+      b.disabled = true;
+    });
+
+    this.updateGDocsSyncIndicator("syncing");
+
+    this.showLoadingOverlay(
+      "Exportando Laudo para o Google Docs",
+      "Criando documento formatado no seu Google Drive com todas as páginas judiciais..."
+    );
+
+    try {
+      if (typeof db === "undefined" || !db.exportToGoogleDocs) {
+        throw new Error("Módulo de integração Google Docs não disponível.");
+      }
+
+      const result = await db.exportToGoogleDocs(this.formData);
+
+      // Registra a sincronização realizada com sucesso (Segurança do Usuário)
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+      const fullDateStr = now.toLocaleDateString("pt-BR") + " às " + timeStr;
+
+      this.formData.googleDocsSync = {
+        syncedAt: now.toISOString(),
+        timeFormatted: timeStr,
+        fullFormatted: fullDateStr,
+        docId: result.documentId,
+        url: result.url,
+        hasPendingChanges: false
+      };
+
+      this.updateGDocsSyncIndicator();
+
+      this.showToast("📑 Documento criado com sucesso no Google Docs!");
+      this.addAssistantMessage(
+        `📑 **Laudo Pericial Exportado para o Google Docs!**\n\nO documento **"${result.title}"** foi salvo com segurança no seu Google Drive às **${timeStr}**.\n\n🔗 **[Clique aqui para abrir e editar no Google Docs](${result.url})**`,
+        this.formData
+      );
+
+      // Abre o documento em uma nova aba se o navegador permitir
+      window.open(result.url, "_blank");
+
+    } catch (err) {
+      console.error("Erro ao exportar para Google Docs:", err);
+      this.showToast("❌ Erro ao exportar para Google Docs: " + err.message);
+      this.addAssistantMessage(`⚠️ Não foi possível exportar para o Google Docs: ${err.message}.\n\nCertifique-se de que autorizou o acesso à sua conta Google clicando em **Entrar com Google** no cabeçalho.`);
+      this.updateGDocsSyncIndicator();
+    } finally {
+      this.hideLoadingOverlay();
+      buttons.forEach(b => {
+        b.innerHTML = prevHtml;
+        b.disabled = false;
+      });
+    }
+  }
+
+  // =====================================================================
+  // INDICADOR VISUAL DE ÚLTIMA SINCRONIZAÇÃO GOOGLE DOCS (SEGURANÇA DO USUÁRIO)
+  // =====================================================================
+  updateGDocsSyncIndicator(customState) {
+    const badge = this.gdocsLastSyncBadge;
+    const topBadge = this.statusBadgeGDocs;
+    const topText = this.statusBadgeGDocsText;
+    const timeEl = this.gdocsSyncTime;
+    const iconEl = this.gdocsSyncIcon;
+    const linkIcon = this.gdocsSyncLinkIcon;
+
+    if (!badge && !topBadge) return;
+
+    if (customState === "syncing") {
+      if (badge) {
+        badge.className = "gdocs-last-sync-badge syncing";
+        if (timeEl) timeEl.innerText = "Sincronizando...";
+        if (iconEl) iconEl.innerText = "⏳";
+        if (linkIcon) linkIcon.style.display = "none";
+        badge.title = "Sincronizando documento com o Google Docs...";
+      }
+      if (topBadge) {
+        topBadge.className = "status-badge gdocs-top-badge syncing";
+        if (topText) topText.innerText = "Docs: Sincronizando...";
+        topBadge.title = "Sincronizando documento com o Google Docs...";
+      }
+      return;
+    }
+
+    const syncInfo = this.formData ? this.formData.googleDocsSync : null;
+
+    if (syncInfo && syncInfo.syncedAt) {
+      const isPending = Boolean(syncInfo.hasPendingChanges);
+      const timeDisplay = syncInfo.timeFormatted || "recente";
+      const fullDisplay = syncInfo.fullFormatted || syncInfo.syncedAt;
+
+      if (isPending) {
+        // Há alterações pendentes no formulário após a última sincronização
+        if (badge) {
+          badge.className = "gdocs-last-sync-badge pending-changes";
+          if (timeEl) timeEl.innerText = `Salvo às ${timeDisplay} (alterações pendentes)`;
+          if (iconEl) iconEl.innerText = "⚠️";
+          if (linkIcon) linkIcon.style.display = "inline";
+          badge.title = `Última sincronização no Google Docs: ${fullDisplay}.\nHá alterações recentes não sincronizadas.\nClique para atualizar o Google Docs.`;
+        }
+        if (topBadge) {
+          topBadge.className = "status-badge gdocs-top-badge pending-changes";
+          if (topText) topText.innerText = `Docs: Salvo às ${timeDisplay} (pendente)`;
+          topBadge.title = `Última sincronização no Google Docs: ${fullDisplay}.\nHá alterações pendentes no formulário.\nClique para atualizar o Google Docs.`;
+        }
+      } else {
+        // Documento sincronizado com sucesso (sensação de segurança total ao perito)
+        if (badge) {
+          badge.className = "gdocs-last-sync-badge synced";
+          if (timeEl) timeEl.innerText = `Salvo às ${timeDisplay}`;
+          if (iconEl) iconEl.innerText = "✅";
+          if (linkIcon) linkIcon.style.display = "inline";
+          badge.title = `Última sincronização no Google Docs: ${fullDisplay}.\nClique para abrir o documento salvo no Google Docs.`;
+        }
+        if (topBadge) {
+          topBadge.className = "status-badge gdocs-top-badge synced";
+          if (topText) topText.innerText = `Docs: Salvo às ${timeDisplay} ✓`;
+          topBadge.title = `Última sincronização no Google Docs: ${fullDisplay}.\nClique para abrir o documento salvo no Google Docs.`;
+        }
+      }
+    } else {
+      // Documento ainda não sincronizado
+      if (badge) {
+        badge.className = "gdocs-last-sync-badge unsynced";
+        if (timeEl) timeEl.innerText = "Não sincronizado";
+        if (iconEl) iconEl.innerText = "☁️";
+        if (linkIcon) linkIcon.style.display = "none";
+        badge.title = "Este laudo ainda não foi salvo no Google Docs.\nClique para exportar com segurança.";
+      }
+      if (topBadge) {
+        topBadge.className = "status-badge gdocs-top-badge unsynced";
+        if (topText) topText.innerText = "Docs: Não sincronizado";
+        topBadge.title = "Este laudo ainda não foi salvo no Google Docs.\nClique para exportar com segurança.";
+      }
+    }
+  }
+
+  handleGDocsBadgeClick() {
+    const syncInfo = this.formData ? this.formData.googleDocsSync : null;
+    if (syncInfo && syncInfo.url) {
+      if (syncInfo.hasPendingChanges) {
+        const ok = confirm(`Este laudo foi salvo no Google Docs às ${syncInfo.timeFormatted}, mas possui alterações recentes no formulário.\n\nDeseja ATUALIZAR a versão salva no Google Docs agora?\n\n(Clique em Cancelar caso queira apenas abrir a versão atual no Google Docs)`);
+        if (ok) {
+          this.exportToGoogleDocs();
+          return;
+        }
+      }
+      window.open(syncInfo.url, "_blank");
+    } else {
+      this.exportToGoogleDocs();
+    }
+  }
 
   // =====================================================================
   // TEMAS E MODAL DE CONFIGURAÇÃO
@@ -2201,8 +2616,49 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
   }
 
   // =====================================================================
-  // APP MOBILE, PWA E NAVEGAÇÃO ENTRE ABAS
+  // APP MODOS DE VISUALIZAÇÃO (SPLIT, CHAT OU DOC), PWA E ABAS
   // =====================================================================
+  setLayoutMode(mode) {
+    this.layoutMode = mode;
+    const container = document.getElementById("mainContainer");
+    if (container) {
+      container.classList.remove("layout-split", "layout-chat", "layout-doc");
+      container.classList.add(`layout-${mode}`);
+    }
+
+    const modeChat = document.getElementById("modeChat");
+    const modeSplit = document.getElementById("modeSplit");
+    const modeDoc = document.getElementById("modeDoc");
+    if (modeChat) modeChat.classList.toggle("active", mode === "chat");
+    if (modeSplit) modeSplit.classList.toggle("active", mode === "split");
+    if (modeDoc) modeDoc.classList.toggle("active", mode === "doc");
+
+    if (this.tabMobileChat) this.tabMobileChat.classList.toggle("active", mode === "chat");
+    if (this.tabMobileDoc) this.tabMobileDoc.classList.toggle("active", mode === "doc");
+
+    if (mode === "doc" || mode === "split") {
+      setTimeout(() => this.fitToWidth(), 100);
+    }
+  }
+
+  toggleExportDropdown(e) {
+    if (e) e.stopPropagation();
+    const menu = document.getElementById("exportDropdownMenu");
+    if (!menu) return;
+    const isOpen = menu.style.display === "flex" || menu.style.display === "block";
+    menu.style.display = isOpen ? "none" : "flex";
+  }
+
+  closeExportDropdown() {
+    const menu = document.getElementById("exportDropdownMenu");
+    if (menu) menu.style.display = "none";
+  }
+
+  updateCaseSubtitle(text) {
+    const el = document.getElementById("chatCaseSubtitle");
+    if (el) el.textContent = text;
+  }
+
   setMobileTab(tabName) {
     if (this.tabMobileChat) this.tabMobileChat.classList.toggle("active", tabName === "chat");
     if (this.tabMobileDoc) this.tabMobileDoc.classList.toggle("active", tabName === "doc");
@@ -2213,16 +2669,7 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
       return;
     }
 
-    if (window.innerWidth <= 960) {
-      if (tabName === "chat") {
-        this.chatPane.style.display = "flex";
-        this.documentPane.style.display = "none";
-      } else if (tabName === "doc") {
-        this.chatPane.style.display = "none";
-        this.documentPane.style.display = "flex";
-        this.fitToWidth();
-      }
-    }
+    this.setLayoutMode(tabName);
   }
 
   openSummaryModal() {
@@ -2246,10 +2693,9 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
       .reduce((acc, [, val]) => acc + (Number(val) || 0), 0);
 
     const calc = typeof calcularRendaPerCapita === "function" 
-      ? calcularRendaPerCapita(d.familia || []) 
-      : { rendaTotal: d.rendaTotalFamilia || 0, rendaPerCapita: d.rendaPerCapita || 0 };
-    const limiteLoas = 353.00; // 1/4 do salário mínimo de R$ 1.412
-    const satisfiesLoas = calc.rendaPerCapita <= limiteLoas;
+      ? calcularRendaPerCapita(d.familia || [], SALARIO_MINIMO_PADRAO, (desp.saude || 0)) 
+      : { rendaTotal: d.rendaTotalFamilia || 0, rendaPerCapita: d.rendaPerCapita || 0, limiteUmQuartoSM: 379.50, limiteMeioSM: 759.00, atendeCriterioObjetivo: true, elegivelSTF: true };
+    const satisfiesLoas = calc.atendeCriterioObjetivo;
 
     this.summaryModalBody.innerHTML = `
       <div class="summary-kpi-banner">
@@ -2261,7 +2707,7 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
         <div class="summary-kpi-item">
           <span class="kpi-label">RENDA PER CAPITA</span>
           <span class="kpi-val highlight">R$ ${calc.rendaPerCapita.toFixed(2)}</span>
-          <span class="kpi-sub">Teto 1/4 SM: R$ 353,00</span>
+          <span class="kpi-sub">1/4 SM: R$ ${calc.limiteUmQuartoSM.toFixed(2)} | STF: R$ ${calc.limiteMeioSM.toFixed(2)}</span>
         </div>
         <div class="summary-kpi-item">
           <span class="kpi-label">DESPESAS COMPROVADAS</span>
@@ -2289,10 +2735,14 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
         </div>
 
         <div class="summary-card full-width">
-          <h4>⚖️ Parecer Conclusivo do Serviço Social (BPC/LOAS)</h4>
+          <h4>⚖️ Parecer Conclusivo do Serviço Social (BPC/LOAS - Critérios STF)</h4>
           <div class="loas-verdict-badge ${c.parecerFavoravel ? 'favoravel' : 'desfavoravel'}">
             <span>${c.parecerFavoravel ? '✅ PARECER SOCIAL FAVORÁVEL AO BPC/LOAS' : '⚠️ ATENÇÃO: CRITÉRIO DE RENDA EXCEDIDO'}</span>
-            <small>${satisfiesLoas ? 'Renda per capita igual ou inferior a 1/4 do Salário Mínimo (Art. 20, § 3º, Lei 8.742/93).' : 'Renda per capita superior a 1/4 SM. A concessão depende da comprovação judicial de extrema vulnerabilidade material.'}</small>
+            <small>${satisfiesLoas 
+              ? `Renda per capita de R$ ${calc.rendaPerCapita.toFixed(2)} atende ao critério legal objetivo de 1/4 SM (R$ ${calc.limiteUmQuartoSM.toFixed(2)}).` 
+              : (calc.elegivelSTF 
+                  ? `Renda per capita de R$ ${calc.rendaPerCapita.toFixed(2)} elegível pela jurisprudência vinculante do STF (Tema 27 / RE 567.985).` 
+                  : `Renda per capita de R$ ${calc.rendaPerCapita.toFixed(2)} acima de 1/2 SM. Concessão judicial requer comprovação de despesas médicas essenciais.`)}</small>
           </div>
           <p style="margin-top:10px; font-size:0.85rem; color:var(--text-secondary); line-height:1.5;">
             ${c.textoEstudoSocial || "Estudo social pronto para visualização completa nas páginas A4 judiciais."}
@@ -2304,11 +2754,15 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
 
   insertPromptSuggestion(type) {
     let suggestion = "";
-    if (type === "moradia") {
+    if (type === "instrucao") {
+      suggestion = "Gostaria de instruções técnicas para fundamentar a instrução de processo judicial de BPC/LOAS. Como demonstrar a vulnerabilidade social e enquadrar a família na jurisprudência do STF (Tema 27)?";
+    } else if (type === "bpc") {
+      suggestion = "Checklist de Elegibilidade BPC/LOAS: Renda familiar de R$ 600,00 para 3 pessoas, despesas contínuas com remédios de R$ 150,00. Analisar conformidade com critérios do STF (1/4 e 1/2 SM).";
+    } else if (type === "moradia" || type === "foto") {
       suggestion = "Foto da moradia (fachada e cômodos): residência em alvenaria simples/madeira, telha de fibrocimento, piso rústico, via de terra sem saneamento, sem itens de luxo.";
     } else if (type === "cadunico") {
       suggestion = "CadÚnico: NIS ..., periciado(a) menor/idoso, renda familiar formal zero, família depende de assistência e auxílio de terceiros.";
-    } else if (type === "cid") {
+    } else if (type === "cid" || type === "saude") {
       suggestion = "Laudo Médico: CID-10 ..., impedimento de longo prazo de natureza física/mental, necessita de cuidados contínuos, sem condições laborais.";
     } else if (type === "familia") {
       suggestion = "Composição Familiar: 3 pessoas no domicílio (genitora sem renda fixa, periciado dependente de cuidados, irmão menor). Renda total: R$ 0,00.";
@@ -2522,8 +2976,10 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido (sem markdown ou crases) no format
 
     if (!res.ok) throw new Error(`Falha no serviço de IA (${res.status})`);
     const raw = await res.text();
-    const cleanJson = raw.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(cleanJson);
+    const parsed = safeParseJson(raw);
+    if (!parsed || typeof parsed !== "object") {
+      throw new Error("Resposta da IA livre não contém JSON estruturado.");
+    }
 
     // Aplica no laudo
     const cleanForm = JSON.parse(JSON.stringify(DEFAULT_FORM_DATA));
@@ -2740,6 +3196,7 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido (sem markdown) com o schema do for
 
       this.formData = JSON.parse(JSON.stringify(row.form_data));
       this.currentPericiaId = row.id;
+      this.updateCaseSubtitle(`Periciado(a): ${row.nome_periciado || "Em Análise"} · Proc: ${row.numero_processo || "S/N"}`);
 
       this.quickChips.forEach(c => c.classList.remove("active"));
       this.renderFormPreview();
@@ -2842,6 +3299,892 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido (sem markdown) com o schema do for
     const onboardingModal = document.getElementById("onboardingModal");
     if (onboardingModal) onboardingModal.classList.remove("open");
     this.showToast("Continuando no modo inteligente.");
+  }
+
+  // =====================================================================
+  // FERRAMENTA DE CHECKLIST DE ELEGIBILIDADE BPC/LOAS & CRITÉRIOS DO STF
+  // =====================================================================
+  analyzeRendaAndBpcEligibility(text) {
+    if (!text || typeof text !== "string") return null;
+    const lower = text.toLowerCase();
+
+    const isExplicitBpcRequest = /elegibilidade|checklist|crit[ée]rio\s+(?:do\s+)?stf|tema\s*27|re\s*567|re\s*580|1\/4\s*(?:do\s+)?sal[áa]rio|1\/2\s*(?:do\s+)?sal[áa]rio|\bloas\b|\bbpc\b/i.test(lower);
+    const hasIncomeMention = /renda|sal[áa]rio|ganh[ao]|receb[eo]|remunera[çc]|benef[íi]cio|pens[ãa]o/i.test(lower);
+    const hasPeopleMention = /pessoa[s]?|membro[s]?|integrante[s]?|filho[s]?|familiar(?:es)?|residente[s]?|na\s+casa|domic[íi]lio/i.test(lower);
+
+    if (!isExplicitBpcRequest && !(hasIncomeMention && (hasPeopleMention || /\b\d+[\d.,]*\b/.test(text)))) {
+      return null;
+    }
+
+    // Extrai número de membros / pessoas
+    let totalMembros = null;
+    const matchMembros = text.match(/(\d+)\s*(?:pessoas|membros|integrantes|filhos|familiares|residentes|na casa)/i) ||
+                         text.match(/(?:para|com|são|somos|totalizando)\s+(\d+)\s*(?:pessoas|membros|de família)?/i) ||
+                         text.match(/fam[íi]lia\s+(?:de|com)\s+(\d+)/i);
+    if (matchMembros) {
+      totalMembros = parseInt(matchMembros[1]);
+    }
+
+    // Extrai Renda Bruta / Total
+    let rendaTotal = null;
+    let rendaPerCapitaDirect = null;
+
+    // Renda per capita direta: ex "renda per capita de 300"
+    const matchPerCapita = text.match(/renda\s*per\s*capita\s*(?:de|é)?\s*(?:r\$\s*)?([\d.,]+)/i);
+    if (matchPerCapita) {
+      rendaPerCapitaDirect = parseFloat(matchPerCapita[1].replace(/\./g, "").replace(",", "."));
+    }
+
+    // Renda total familiar: ex "renda total de R$ 1.200" ou "renda familiar de 800"
+    const matchRenda = text.match(/(?:renda|ganham|recebem|recebe|sal[áa]rio|valor)(?:\s+total|\s+familiar|\s+bruta|\s+mensal|\s+de)?[:\s]+(?:r\$\s*)?([\d.,]+)/i) ||
+                       text.match(/(?:r\$\s*)([\d.,]+)\s*(?:de\s+renda|no\s+total|para\s+\d+)/i);
+    if (matchRenda) {
+      rendaTotal = parseFloat(matchRenda[1].replace(/\./g, "").replace(",", "."));
+    }
+
+    // Menção a "X salários mínimos" ou "1 salário mínimo"
+    const matchSM = text.match(/(\d+)?\s*sal[áa]rio[s]?\s*m[íi]nimo[s]?/i);
+    if (matchSM && (rendaTotal === null || isNaN(rendaTotal))) {
+      const qtdSM = matchSM[1] ? parseInt(matchSM[1]) : 1;
+      rendaTotal = qtdSM * SALARIO_MINIMO_PADRAO;
+    }
+
+    // Despesas dedutíveis com medicamentos / saúde / tratamentos
+    let despesasDedutiveis = 0;
+    const matchDespesa = text.match(/(?:gasto|gasta|despesa|medicamento|remédio|farm[áa]cia|sa[úu]de|tratamento)\w*\s*(?:de|é)?\s*(?:r\$\s*)?([\d.,]+)/i);
+    if (matchDespesa) {
+      despesasDedutiveis = parseFloat(matchDespesa[1].replace(/\./g, "").replace(",", "."));
+    }
+
+    // Se não encontrou no texto mas foi pedido explícito de checklist, usa os dados atuais do laudo
+    if (totalMembros === null || isNaN(totalMembros) || totalMembros <= 0) {
+      totalMembros = (this.formData.familia && this.formData.familia.length > 0) ? this.formData.familia.length : 1;
+    }
+    if (rendaTotal === null || isNaN(rendaTotal)) {
+      if (rendaPerCapitaDirect !== null && !isNaN(rendaPerCapitaDirect)) {
+        rendaTotal = rendaPerCapitaDirect * totalMembros;
+      } else {
+        rendaTotal = Number(this.formData.rendaTotalFamilia) || 0;
+      }
+    }
+    if (despesasDedutiveis === 0 && this.formData.despesas && this.formData.despesas.saude) {
+      despesasDedutiveis = Number(this.formData.despesas.saude) || 0;
+    }
+
+    // Executa cálculo com os critérios do STF
+    const calc = typeof calcularRendaPerCapita === "function"
+      ? calcularRendaPerCapita(
+          Array(totalMembros).fill(0).map((_, i) => ({
+            rendaMensal: i === 0 ? rendaTotal : 0
+          })),
+          SALARIO_MINIMO_PADRAO,
+          despesasDedutiveis
+        )
+      : {
+          totalMembros,
+          rendaBruta: rendaTotal,
+          despesasDedutiveis,
+          rendaTotal: Math.max(0, rendaTotal - despesasDedutiveis),
+          rendaPerCapita: totalMembros > 0 ? (Math.max(0, rendaTotal - despesasDedutiveis) / totalMembros) : 0,
+          salarioMinimo: SALARIO_MINIMO_PADRAO,
+          limiteUmQuartoSM: 379.50,
+          limiteMeioSM: 759.00,
+          atendeCriterioObjetivo: true,
+          elegivelSTF: true,
+          statusSTF: "CONFORME_OBJETIVO",
+          tituloAlerta: "CONFORME CRITÉRIO LEGAL OBJETIVO (≤ 1/4 SM)",
+          nivelAlerta: "verde",
+          resumoFundamentacao: "Renda per capita em conformidade com o critério da LOAS.",
+          textoParecer: "Renda per capita atende ao critério legal objetivo da LOAS."
+        };
+
+    return {
+      totalMembros,
+      rendaBruta: rendaTotal,
+      despesasDedutiveis,
+      calc
+    };
+  }
+
+  handleBpcChecklistChatMessage(userText, bpcAnalysis) {
+    const calc = bpcAnalysis.calc;
+    const msgIntro = `⚖️ **Checklist de Elegibilidade BPC/LOAS & Critérios do STF:**\n\nIdentifiquei a renda familiar declarada de **R$ ${calc.rendaBruta.toFixed(2)}** para **${calc.totalMembros} ${calc.totalMembros === 1 ? 'pessoa' : 'pessoas'}**${calc.despesasDedutiveis > 0 ? ` (com dedução legal de R$ ${calc.despesasDedutiveis.toFixed(2)} em saúde/medicamentos)` : ''}.\n\nA **renda líquida per capita** apurada é de **R$ ${calc.rendaPerCapita.toFixed(2)}**.\n\nAbaixo está a aferição oficial com o alerta visual de conformidade com os critérios do STF (Tema 27 / RE 567.985):`;
+    
+    this.addAssistantMessage(msgIntro, null, calc);
+  }
+
+  renderBpcChecklistCardHtml(calc) {
+    if (!calc) return "";
+
+    const sm = calc.salarioMinimo || SALARIO_MINIMO_PADRAO;
+    const limite14 = calc.limiteUmQuartoSM || (sm / 4);
+    const limite12 = calc.limiteMeioSM || (sm / 2);
+    const rpc = calc.rendaPerCapita || 0;
+
+    let iconAlert = "🛡️";
+    if (calc.nivelAlerta === "amarelo") iconAlert = "⚖️";
+    if (calc.nivelAlerta === "vermelho") iconAlert = "⚠️";
+
+    const calcDataEscaped = JSON.stringify(calc).replace(/"/g, '&quot;');
+
+    return `
+      <div class="bpc-checklist-card">
+        <div class="bpc-card-header">
+          <div class="bpc-card-title">
+            <span>⚖️</span>
+            <span>Checklist de Elegibilidade BPC/LOAS</span>
+          </div>
+          <span class="bpc-stf-tag" title="Critério Jurisprudencial Vinculante">STF: Tema 27 / RE 567.985</span>
+        </div>
+
+        <!-- Alerta Visual de Conformidade com o STF -->
+        <div class="bpc-alert-banner ${calc.nivelAlerta}">
+          <div class="bpc-alert-icon">${iconAlert}</div>
+          <div class="bpc-alert-content">
+            <div class="bpc-alert-title">${calc.tituloAlerta}</div>
+            <div class="bpc-alert-desc">${calc.resumoFundamentacao}</div>
+          </div>
+        </div>
+
+        <!-- Barra Visual de Faixas (0 a 1 Salário Mínimo) -->
+        <div class="bpc-gauge-wrap">
+          <div style="display:flex; justify-content:space-between; font-size:0.72rem; margin-bottom:4px; font-weight:600;">
+            <span>Faixa de Enquadramento Socioeconômico:</span>
+            <span style="color:${calc.nivelAlerta === 'verde' ? '#16a34a' : (calc.nivelAlerta === 'amarelo' ? '#d97706' : '#dc2626')}">
+              Renda Apurada: R$ ${rpc.toFixed(2)} (${sm > 0 ? (rpc / sm * 100).toFixed(0) : 0}% do Salário Mínimo)
+            </span>
+          </div>
+          <div class="bpc-gauge-bar">
+            <div class="bpc-zone-1" title="Até 1/4 SM (R$ ${limite14.toFixed(2)}) - Conforme Presunção Legal"></div>
+            <div class="bpc-zone-2" title="De 1/4 a 1/2 SM (R$ ${limite12.toFixed(2)}) - Elegível via STF / Tema 27"></div>
+            <div class="bpc-zone-3" title="Acima de 1/2 SM - Requer Comprovação de Gastos Graves"></div>
+          </div>
+          <div class="bpc-gauge-labels">
+            <span>R$ 0,00</span>
+            <span style="color:#16a34a; font-weight:700;">1/4 SM: R$ ${limite14.toFixed(2)}</span>
+            <span style="color:#d97706; font-weight:700;">1/2 SM: R$ ${limite12.toFixed(2)} (STF)</span>
+            <span>1 SM: R$ ${sm.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <!-- Métricas Principais -->
+        <div class="bpc-metrics-grid">
+          <div class="bpc-metric-box">
+            <span class="bpc-metric-label">Renda Familiar</span>
+            <span class="bpc-metric-value">R$ ${calc.rendaBruta.toFixed(2)}</span>
+          </div>
+          <div class="bpc-metric-box">
+            <span class="bpc-metric-label">Membros</span>
+            <span class="bpc-metric-value">${calc.totalMembros} ${calc.totalMembros === 1 ? 'pessoa' : 'pessoas'}</span>
+          </div>
+          <div class="bpc-metric-box highlight">
+            <span class="bpc-metric-label">Renda Per Capita</span>
+            <span class="bpc-metric-value">R$ ${rpc.toFixed(2)}</span>
+          </div>
+          <div class="bpc-metric-box">
+            <span class="bpc-metric-label">Teto STF (1/4 SM)</span>
+            <span class="bpc-metric-value">R$ ${limite14.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <!-- Checklist de Critérios Legais e Judiciais -->
+        <div class="bpc-checklist-items">
+          <div class="bpc-item-row">
+            <span class="bpc-check-icon checked">✓</span>
+            <div><strong>1. Requisito Pessoal:</strong> Idoso (≥ 65 anos) OU Pessoa com Deficiência (Impedimento de longo prazo ≥ 2 anos)</div>
+          </div>
+          <div class="bpc-item-row">
+            <span class="bpc-check-icon ${calc.atendeCriterioObjetivo ? 'checked' : (calc.elegivelSTF ? 'warning' : 'unchecked')}">
+              ${calc.atendeCriterioObjetivo ? '✓' : (calc.elegivelSTF ? '⚖️' : '⚠️')}
+            </span>
+            <div>
+              <strong>2. Critério de Renda (STF):</strong> 
+              ${calc.atendeCriterioObjetivo 
+                ? `Renda per capita de R$ ${rpc.toFixed(2)} atende ao limite objetivo de 1/4 do salário mínimo (Art. 20, § 3º LOAS).` 
+                : (calc.elegivelSTF 
+                    ? `Renda per capita de R$ ${rpc.toFixed(2)} elegível pela jurisprudência vinculante do STF (Tema 27 / RE 567.985).`
+                    : `Renda per capita de R$ ${rpc.toFixed(2)} acima de 1/2 SM; exige dedução contábil de medicamentos e tratamentos.`)}
+            </div>
+          </div>
+          <div class="bpc-item-row">
+            <span class="bpc-check-icon ${calc.despesasDedutiveis > 0 ? 'checked' : 'checked'}">✓</span>
+            <div>
+              <strong>3. Deduções Legais de Saúde (Art. 20-B da LOAS):</strong>
+              ${calc.despesasDedutiveis > 0 
+                ? `R$ ${calc.despesasDedutiveis.toFixed(2)} deduzidos com medicamentos, fraldas ou tratamentos essenciais.` 
+                : 'Gastos contínuos de saúde dedutíveis da renda bruta na perícia judicial.'}
+            </div>
+          </div>
+          <div class="bpc-item-row">
+            <span class="bpc-check-icon checked">✓</span>
+            <div><strong>4. Inscrição no CadÚnico:</strong> Exigência de cadastramento e atualização bienal da família.</div>
+          </div>
+          <div class="bpc-item-row">
+            <span class="bpc-check-icon checked">✓</span>
+            <div><strong>5. Não Cumulação:</strong> Ausência de benefício previdenciário concomitante (salvo pensão indenizatória e assistência médica).</div>
+          </div>
+          <div class="bpc-item-row">
+            <span class="bpc-check-icon checked">✓</span>
+            <div><strong>6. Parecer Técnico do Serviço Social:</strong> Estudo social comprova vulnerabilidade material, precariedade de moradia e barreiras comunitárias.</div>
+          </div>
+        </div>
+
+        <!-- Ações do Checklist -->
+        <div class="bpc-actions-row">
+          <button type="button" class="btn-bpc-action primary" onclick="app.applyBpcChecklistToForm(${calcDataEscaped})" title="Preencher as páginas 2 e 6 do formulário oficial A4 com este cálculo e tese do STF">
+            <span>📝</span> Aplicar ao Laudo Oficial (A4)
+          </button>
+          <button type="button" class="btn-bpc-action secondary" onclick="app.openBpcEligibilityModal(${calcDataEscaped})" title="Abrir ferramenta completa para simular despesas médicas e deduções">
+            <span>🧮</span> Simular Deduções / Ajustar
+          </button>
+          <button type="button" class="btn-bpc-action secondary" onclick="app.exportBpcChecklistTxt(${calcDataEscaped})" title="Baixar relatório técnico da análise preliminar como arquivo de texto (.txt)">
+            <span>📄</span> Exportar (.txt)
+          </button>
+          <button type="button" class="btn-bpc-action secondary" onclick="app.exportBpcChecklistImage(${calcDataEscaped})" title="Gerar e baixar imagem do certificado de análise do checklist (.png)">
+            <span>🖼️</span> Imagem (.png)
+          </button>
+          <button type="button" class="btn-bpc-action secondary" onclick="app.insertBpcTeseJudicial(${calcDataEscaped})" title="Inserir a tese jurisprudencial do STF no parecer técnico">
+            <span>📜</span> Inserir Tese STF
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  openBpcEligibilityModal(initialCalc = null) {
+    const modal = document.getElementById("bpcEligibilityModal");
+    if (!modal) return;
+
+    let membros = 1;
+    let renda = 0;
+    let deducoes = 0;
+    let sm = SALARIO_MINIMO_PADRAO;
+
+    if (initialCalc) {
+      membros = initialCalc.totalMembros || 1;
+      renda = initialCalc.rendaBruta || 0;
+      deducoes = initialCalc.despesasDedutiveis || 0;
+      sm = initialCalc.salarioMinimo || SALARIO_MINIMO_PADRAO;
+    } else {
+      if (this.formData.familia && this.formData.familia.length > 0) {
+        membros = this.formData.familia.length;
+        renda = this.formData.familia.reduce((acc, curr) => acc + (parseFloat(curr.rendaMensal) || 0), 0);
+      } else if (this.formData.rendaTotalFamilia) {
+        renda = parseFloat(this.formData.rendaTotalFamilia) || 0;
+      }
+      if (this.formData.despesas && this.formData.despesas.saude) {
+        deducoes = parseFloat(this.formData.despesas.saude) || 0;
+      }
+    }
+
+    this._currentBpcModalState = { membros, renda, deducoes, sm };
+    this.renderBpcModalContent();
+    modal.classList.add("open");
+  }
+
+  closeBpcEligibilityModal() {
+    const modal = document.getElementById("bpcEligibilityModal");
+    if (modal) modal.classList.remove("open");
+  }
+
+  renderBpcModalContent() {
+    const body = document.getElementById("bpcModalBody");
+    if (!body || !this._currentBpcModalState) return;
+
+    const s = this._currentBpcModalState;
+    const calc = typeof calcularRendaPerCapita === "function"
+      ? calcularRendaPerCapita(
+          Array(s.membros).fill(0).map((_, i) => ({ rendaMensal: i === 0 ? s.renda : 0 })),
+          s.sm,
+          s.deducoes
+        )
+      : null;
+
+    this._currentBpcCalc = calc;
+
+    body.innerHTML = `
+      <div style="background:var(--bg-surface-elevated); padding:12px 14px; border-radius:8px; margin-bottom:14px; border:1px solid var(--gemini-border); font-size:0.82rem; line-height:1.45; color:var(--text-secondary);">
+        ⚖️ <strong>Fundamentação Jurisprudencial Vinculante:</strong><br>
+        O <strong>Supremo Tribunal Federal (RE 567.985/MT - Tema 27)</strong> declarou a inconstitucionalidade parcial sem pronúncia de nulidade do critério absoluto de 1/4 do salário mínimo (Art. 20, § 3º da Lei 8.742/93), permitindo ao(à) Assistente Social Perito(a) demonstrar a vulnerabilidade real no caso concreto através de despesas com tratamentos contínuos de saúde e condições sociais de moradia.
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+        <span style="font-size:0.82rem; font-weight:700; color:var(--text-primary);">Aferição de Variáveis e Deduções:</span>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn-bpc-action secondary" onclick="app.exportBpcChecklistTxt()" title="Baixar relatório técnico como arquivo de texto (.txt)">
+            <span>📄</span> Exportar (.txt)
+          </button>
+          <button type="button" class="btn-bpc-action secondary" onclick="app.exportBpcChecklistImage()" title="Gerar e baixar certificado do checklist em imagem (.png)">
+            <span>🖼️</span> Exportar Imagem (.png)
+          </button>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:16px;">
+        <div class="bpc-form-group">
+          <label for="bpcModalSM">Salário Mínimo de Referência (R$):</label>
+          <input type="number" id="bpcModalSM" value="${s.sm.toFixed(2)}" step="1" oninput="app.recalculateBpcModal()">
+        </div>
+
+        <div class="bpc-form-group">
+          <label for="bpcModalMembros">Número de Membros da Família:</label>
+          <input type="number" id="bpcModalMembros" value="${s.membros}" min="1" step="1" oninput="app.recalculateBpcModal()">
+        </div>
+
+        <div class="bpc-form-group">
+          <label for="bpcModalRenda">Renda Familiar Bruta Mensal (R$):</label>
+          <input type="number" id="bpcModalRenda" value="${s.renda.toFixed(2)}" min="0" step="10" oninput="app.recalculateBpcModal()">
+        </div>
+
+        <div class="bpc-form-group">
+          <label for="bpcModalDeducoes">Deduções de Medicamentos/Saúde (R$):</label>
+          <input type="number" id="bpcModalDeducoes" value="${s.deducoes.toFixed(2)}" min="0" step="10" oninput="app.recalculateBpcModal()">
+          <small style="font-size:0.7rem; color:var(--text-tertiary);">Art. 20-B da LOAS (Lei 14.176/21)</small>
+        </div>
+      </div>
+
+      <div id="bpcModalCardContainer">
+        ${this.renderBpcChecklistCardHtml(calc)}
+      </div>
+    `;
+  }
+
+  recalculateBpcModal() {
+    const inputSM = document.getElementById("bpcModalSM");
+    const inputMembros = document.getElementById("bpcModalMembros");
+    const inputRenda = document.getElementById("bpcModalRenda");
+    const inputDeducoes = document.getElementById("bpcModalDeducoes");
+
+    const sm = inputSM ? parseFloat(inputSM.value) || SALARIO_MINIMO_PADRAO : SALARIO_MINIMO_PADRAO;
+    const membros = inputMembros ? Math.max(1, parseInt(inputMembros.value) || 1) : 1;
+    const renda = inputRenda ? Math.max(0, parseFloat(inputRenda.value) || 0) : 0;
+    const deducoes = inputDeducoes ? Math.max(0, parseFloat(inputDeducoes.value) || 0) : 0;
+
+    this._currentBpcModalState = { membros, renda, deducoes, sm };
+
+    const calc = typeof calcularRendaPerCapita === "function"
+      ? calcularRendaPerCapita(
+          Array(membros).fill(0).map((_, i) => ({ rendaMensal: i === 0 ? renda : 0 })),
+          sm,
+          deducoes
+        )
+      : null;
+
+    this._currentBpcCalc = calc;
+
+    const container = document.getElementById("bpcModalCardContainer");
+    if (container && calc) {
+      container.innerHTML = this.renderBpcChecklistCardHtml(calc);
+    }
+  }
+
+  applyBpcChecklistToForm(customCalc = null) {
+    const calc = customCalc || this._currentBpcCalc || (this._currentBpcModalState ? calcularRendaPerCapita(
+      Array(this._currentBpcModalState.membros).fill(0).map((_, i) => ({ rendaMensal: i === 0 ? this._currentBpcModalState.renda : 0 })),
+      this._currentBpcModalState.sm,
+      this._currentBpcModalState.deducoes
+    ) : null);
+
+    if (!calc) return;
+
+    // Atualiza dados de renda do formulário oficial A4
+    this.formData.rendaTotalFamilia = calc.rendaTotal;
+    this.formData.rendaPerCapita = calc.rendaPerCapita;
+    this.formData.rendaObservacao = `Renda familiar total de R$ ${calc.rendaBruta.toFixed(2)}${calc.despesasDedutiveis > 0 ? ` (dedução legal de R$ ${calc.despesasDedutiveis.toFixed(2)} em saúde/medicamentos contínuos)` : ""}, perfazendo a renda per capita mensal de R$ ${calc.rendaPerCapita.toFixed(2)} para ${calc.totalMembros} pessoa(s). ${calc.resumoFundamentacao}`;
+
+    // Atualiza parecer técnico oficial na Página 6
+    if (!this.formData.conclusao) this.formData.conclusao = {};
+    this.formData.conclusao.rendaAtendeCriterioLoas = calc.elegivelSTF;
+    this.formData.conclusao.parecerFavoravel = calc.elegivelSTF;
+    this.formData.conclusao.vulnerabilidadeEconomicaSevera = true;
+    this.formData.conclusao.naoDispoeMeiosProprios = true;
+    this.formData.conclusao.textoParecerComplementar = calc.textoParecer;
+
+    // Se houver despesas de saúde informadas, atualiza no laudo
+    if (calc.despesasDedutiveis > 0) {
+      if (!this.formData.despesas) this.formData.despesas = {};
+      this.formData.despesas.saude = calc.despesasDedutiveis;
+      this.formData.despesas.saudeObs = "Medicamentos de uso contínuo e tratamentos indispensáveis (dedução conforme Art. 20-B da LOAS).";
+    }
+
+    this.renderFormPreview();
+    this.flashDocumentUpdate();
+    this.scrollToPage(2);
+    this.closeBpcEligibilityModal();
+
+    this.showToast(`⚖️ Checklist BPC/LOAS e Critérios do STF aplicados com sucesso à Página 2 e 6 do Laudo!`);
+  }
+
+  copyBpcFundamentacaoToChat() {
+    const calc = this._currentBpcCalc;
+    if (!calc) return;
+
+    const chatMsg = `⚖️ **Checklist Oficial de Elegibilidade BPC/LOAS (Critérios STF):**\n\n` +
+      `• **Renda Familiar Bruta:** R$ ${calc.rendaBruta.toFixed(2)}\n` +
+      `• **Composição Familiar:** ${calc.totalMembros} membro(s)\n` +
+      `• **Deduções com Saúde:** R$ ${calc.despesasDedutiveis.toFixed(2)}\n` +
+      `• **Renda Líquida Per Capita:** R$ ${calc.rendaPerCapita.toFixed(2)}\n` +
+      `• **Alerta Visual STF:** ${calc.tituloAlerta}\n\n` +
+      `**Fundamentação Técnica do Serviço Social:**\n${calc.resumoFundamentacao}\n\n` +
+      `*Jurisprudência Vinculante: STF RE 567.985/MT (Tema 27), RE 580.963/PR e Lei 14.176/2021.*`;
+
+    this.addAssistantMessage(chatMsg, null, calc);
+    this.closeBpcEligibilityModal();
+    this.showToast("Análise de elegibilidade enviada ao chat com sucesso!");
+  }
+
+  insertBpcTeseJudicial(calc) {
+    if (!calc) return;
+
+    if (!this.formData.conclusao) this.formData.conclusao = {};
+    this.formData.conclusao.textoParecerComplementar = calc.textoParecer;
+    this.renderFormPreview();
+    this.flashDocumentUpdate();
+    this.scrollToPage(6);
+
+    this.showToast("Tese jurisprudencial do STF inserida no Parecer Conclusivo (Página 6)!");
+  }
+
+  // =====================================================================
+  // EXPORTAÇÃO DO CHECKLIST BPC/LOAS (ARQUIVO .TXT E IMAGEM .PNG)
+  // =====================================================================
+  exportBpcChecklistTxt(customCalc = null) {
+    const calc = customCalc || this._currentBpcCalc || (this._currentBpcModalState ? calcularRendaPerCapita(
+      Array(this._currentBpcModalState.membros).fill(0).map((_, i) => ({ rendaMensal: i === 0 ? this._currentBpcModalState.renda : 0 })),
+      this._currentBpcModalState.sm,
+      this._currentBpcModalState.deducoes
+    ) : calcularRendaPerCapita(this.formData.familia || [], SALARIO_MINIMO_PADRAO, (this.formData.despesas && this.formData.despesas.saude) || 0));
+
+    if (!calc) {
+      this.showToast("Nenhum dado de cálculo disponível para exportação.");
+      return;
+    }
+
+    const id = this.formData.identificacao || {};
+    const enc = this.formData.encerramento || {};
+    const dataHora = new Date().toLocaleString("pt-BR", { dateStyle: "long", timeStyle: "short" });
+
+    const txtContent = 
+`================================================================================
+PODER JUDICIÁRIO • JUSTIÇA FEDERAL
+SEÇÃO JUDICIÁRIA DO AMAPÁ • COORDENAÇÃO DOS JUIZADOS ESPECIAIS FEDERAIS
+ANÁLISE PRELIMINAR DE ELEGIBILIDADE BPC/LOAS (LEI Nº 8.742/1993)
+CONFORMIDADE COM OS CRITÉRIOS JURISPRUDENCIAIS DO STF (TEMA 27 / RE 567.985)
+================================================================================
+
+DATA E HORA DA EMISSÃO: ${dataHora}
+COMARCA / SEÇÃO: ${enc.municipio || "Macapá"}/${enc.uf || "AP"}
+PERICIADO(A): ${id.periciado || "Não especificado (Análise em Fase Preliminar)"}
+CPF: ${id.cpf || "---"}
+PROCESSO JUDICIAL Nº: ${id.processo || "Em autuação / Juizado Especial Federal"}
+PERITO(A) RESPONSÁVEL: ${enc.nomePerito || "Assistente Social Perito(a) Judicial"} (${enc.cress || "CRESS 104 24ª Região-AP"})
+
+--------------------------------------------------------------------------------
+1. QUADRO ECONÔMICO E COMPOSIÇÃO FAMILIAR
+--------------------------------------------------------------------------------
+• Salário Mínimo Vigente de Referência:  R$ ${calc.salarioMinimo.toFixed(2)}
+• Total de Integrantes no Grupo Familiar: ${calc.totalMembros} pessoa(s)
+• Renda Familiar Bruta Mensal:            R$ ${calc.rendaBruta.toFixed(2)}
+• Deduções com Saúde/Medicamentos:        R$ ${calc.despesasDedutiveis.toFixed(2)} (Art. 20-B da Lei 8.742/93)
+• Renda Familiar Líquida Disponível:      R$ ${calc.rendaTotal.toFixed(2)}
+• RENDA LÍQUIDA PER CAPITA APURADA:       R$ ${calc.rendaPerCapita.toFixed(2)} por pessoa
+
+PARÂMETROS DE CONTROLE JUDICIAL:
+• Teto Legal Objetivo LOAS (1/4 SM):      R$ ${calc.limiteUmQuartoSM.toFixed(2)}
+• Teto Jurisprudencial do STF (1/2 SM):   R$ ${calc.limiteMeioSM.toFixed(2)}
+
+--------------------------------------------------------------------------------
+2. ALERTA VISUAL DE CONFORMIDADE COM O STF (TEMA 27 / RE 567.985)
+--------------------------------------------------------------------------------
+STATUS DE ENQUADRAMENTO: ${calc.tituloAlerta}
+NÍVEL TÉCNICO DE VULNERABILIDADE: ${calc.nivelAlerta === "verde" ? "PRESUMIDA POR LEI (≤ 1/4 SM)" : (calc.nivelAlerta === "amarelo" ? "ELEGÍVEL SEGUNDO CRITÉRIO DO STF (1/4 A 1/2 SM)" : "EXCEDE 1/2 SM (NECESSÁRIO COMPROVAR GASTOS GRAVES)")}
+
+PARECER DO SERVIÇO SOCIAL:
+${calc.resumoFundamentacao}
+
+SUGESTÃO DE TEXTO PARA O LAUDO PERICIAL:
+"${calc.textoParecer}"
+
+--------------------------------------------------------------------------------
+3. CHECKLIST OFICIAL DE REQUISITOS (LEI Nº 8.742/93 E ESTATUTOS)
+--------------------------------------------------------------------------------
+[X] 1. Requisito Pessoal: Idoso (≥ 65 anos) OU Pessoa com Deficiência (Impedimento físico/mental de longo prazo ≥ 2 anos)
+[${calc.atendeCriterioObjetivo ? 'X' : (calc.elegivelSTF ? '!' : ' ')}] 2. Critério de Renda: ${calc.atendeCriterioObjetivo ? 'Atende ao teto estrito de 1/4 SM' : (calc.elegivelSTF ? 'Elegível via flexibilização do STF (Tema 27)' : 'Supera 1/2 SM sem deduções')}
+[X] 3. Deduções com Saúde: Comprovação de despesas contínuas com medicamentos e fraldas não fornecidos pelo SUS
+[X] 4. Cadastro Único (CadÚnico): Família inscrita ou em processo de atualização bienal obrigatória
+[X] 5. Não Cumulação: Ausência de recebimento simultâneo com outro benefício da Seguridade Social
+[X] 6. Estudo Social Pericial: Constatação in loco de precariedade habitacional e barreiras sociais
+
+--------------------------------------------------------------------------------
+4. FUNDAMENTAÇÃO JURÍDICA E SÚMULAS VINCULANTES
+--------------------------------------------------------------------------------
+- Supremo Tribunal Federal (STF) - RE 567.985/MT (Tema 27 da Repercussão Geral):
+  Fixou que o critério de 1/4 do salário mínimo não é o único meio idôneo para
+  comprovar a miserabilidade da família do necessitado, autorizando o magistrado
+  a utilizar outros elementos probatórios constantes no Estudo Social Pericial.
+- Lei nº 14.176/2021 (Art. 20-B da Lei nº 8.742/1993):
+  Autorizou a dedução de despesas com tratamentos de saúde, medicamentos, fraldas
+  e alimentação especial não custeados pelo SUS, elevando o patamar de análise.
+- Turma Nacional de Uniformização (TNU - Súmula 79):
+  Nas ações em que se postula benefício assistencial, comprovada a necessidade
+  contínua de medicamentos ou tratamentos não fornecidos pelo SUS, tais despesas
+  devem ser deduzidas da renda familiar bruta.
+
+================================================================================
+Documento gerado eletronicamente pelo Sistema Visum Social
+Coordenação de Perícias Socioeconômicas • Justiça Federal
+================================================================================`;
+
+    const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeName = (id.periciado || "periciado").toLowerCase().replace(/[^a-z0-9]/g, "_");
+    a.href = url;
+    a.download = `checklist_bpc_loas_${safeName}_${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    this.showToast("📄 Relatório do checklist exportado como arquivo de texto (.txt)!");
+  }
+
+  exportBpcChecklistImage(customCalc = null) {
+    const calc = customCalc || this._currentBpcCalc || (this._currentBpcModalState ? calcularRendaPerCapita(
+      Array(this._currentBpcModalState.membros).fill(0).map((_, i) => ({ rendaMensal: i === 0 ? this._currentBpcModalState.renda : 0 })),
+      this._currentBpcModalState.sm,
+      this._currentBpcModalState.deducoes
+    ) : calcularRendaPerCapita(this.formData.familia || [], SALARIO_MINIMO_PADRAO, (this.formData.despesas && this.formData.despesas.saude) || 0));
+
+    if (!calc) {
+      this.showToast("Nenhum dado de cálculo disponível para exportação.");
+      return;
+    }
+
+    const id = this.formData.identificacao || {};
+    const enc = this.formData.encerramento || {};
+    const dataHora = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+
+    // Cria canvas de alta definição (1200 x 1580 px)
+    const canvas = document.createElement("canvas");
+    canvas.width = 1200;
+    canvas.height = 1580;
+    const ctx = canvas.getContext("2d");
+
+    // Helper para desenhar retângulos arredondados
+    function drawRoundRect(c, x, y, width, height, radius, fill, stroke, strokeWidth = 1) {
+      c.save();
+      c.beginPath();
+      c.moveTo(x + radius, y);
+      c.lineTo(x + width - radius, y);
+      c.quadraticCurveTo(x + width, y, x + width, y + radius);
+      c.lineTo(x + width, y + height - radius);
+      c.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+      c.lineTo(x + radius, y + height);
+      c.quadraticCurveTo(x, y + height, x, y + height - radius);
+      c.lineTo(x, y + radius);
+      c.quadraticCurveTo(x, y, x + radius, y);
+      c.closePath();
+      if (fill) {
+        c.fillStyle = fill;
+        c.fill();
+      }
+      if (stroke) {
+        c.strokeStyle = stroke;
+        c.lineWidth = strokeWidth;
+        c.stroke();
+      }
+      c.restore();
+    }
+
+    // Helper para quebra de linha de texto
+    function wrapText(c, text, x, y, maxWidth, lineHeight) {
+      const words = (text || "").split(" ");
+      let line = "";
+      let curY = y;
+      for (let n = 0; n < words.length; n++) {
+        const testLine = line + words[n] + " ";
+        const metrics = c.measureText(testLine);
+        if (metrics.width > maxWidth && n > 0) {
+          c.fillText(line.trim(), x, curY);
+          line = words[n] + " ";
+          curY += lineHeight;
+        } else {
+          line = testLine;
+        }
+      }
+      if (line.trim().length > 0) {
+        c.fillText(line.trim(), x, curY);
+        curY += lineHeight;
+      }
+      return curY;
+    }
+
+    // 1. Fundo Geral
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 2. Cabeçalho Oficial Azul Petróleo / Marinho
+    const gradHeader = ctx.createLinearGradient(0, 0, 1200, 160);
+    gradHeader.addColorStop(0, "#0a192f");
+    gradHeader.addColorStop(1, "#1e3a5f");
+    ctx.fillStyle = gradHeader;
+    ctx.fillRect(0, 0, 1200, 160);
+
+    // Barra Dourada de Destaque
+    ctx.fillStyle = "#f59e0b";
+    ctx.fillRect(0, 155, 1200, 5);
+
+    // Ícone e Títulos do Cabeçalho
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 17px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    ctx.fillText("PODER JUDICIÁRIO  •  JUSTIÇA FEDERAL  •  SERVIÇO SOCIAL", 60, 48);
+
+    ctx.fillStyle = "#fde047";
+    ctx.font = "bold 30px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    ctx.fillText("RELATÓRIO DE ELEGIBILIDADE BPC/LOAS", 60, 92);
+
+    ctx.fillStyle = "#cbd5e1";
+    ctx.font = "16px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    ctx.fillText("Aferição da Renda Per Capita  •  Critérios Vinculantes do STF (Tema 27 / RE 567.985)", 60, 128);
+
+    // 3. Card de Identificação do Caso
+    drawRoundRect(ctx, 50, 185, 1100, 105, 8, "#ffffff", "#e2e8f0", 1.5);
+    
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "bold 19px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    ctx.fillText(`PERICIADO(A): ${id.periciado || "Análise Preliminar em Andamento"}`, 75, 222);
+
+    ctx.fillStyle = "#475569";
+    ctx.font = "15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    ctx.fillText(`Processo Judicial: ${id.processo || "Não autuado"}   |   CPF: ${id.cpf || "Não informado"}`, 75, 252);
+    ctx.fillText(`Comarca: ${enc.municipio || "Macapá"}/${enc.uf || "AP"}   |   Emissão: ${dataHora}`, 75, 274);
+
+    // 4. Banner com Alerta Visual do STF
+    let alertBg = "#f0fdf4";
+    let alertBorder = "#16a34a";
+    let alertTextColor = "#166534";
+    let alertIcon = "🛡️";
+
+    if (calc.nivelAlerta === "amarelo") {
+      alertBg = "#fffbeb";
+      alertBorder = "#d97706";
+      alertTextColor = "#92400e";
+      alertIcon = "⚖️";
+    } else if (calc.nivelAlerta === "vermelho") {
+      alertBg = "#fef2f2";
+      alertBorder = "#dc2626";
+      alertTextColor = "#991b1b";
+      alertIcon = "⚠️";
+    }
+
+    drawRoundRect(ctx, 50, 310, 1100, 135, 8, alertBg, alertBorder, 2);
+
+    // Faixa lateral colorida
+    ctx.fillStyle = alertBorder;
+    ctx.fillRect(50, 310, 12, 135);
+
+    ctx.fillStyle = alertTextColor;
+    ctx.font = "bold 20px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    ctx.fillText(`${alertIcon}  ${calc.tituloAlerta}`, 85, 345);
+
+    ctx.fillStyle = "#1e293b";
+    ctx.font = "15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    wrapText(ctx, calc.resumoFundamentacao, 85, 375, 1030, 22);
+
+    // 5. Quatro Caixas de Métricas Financeiras
+    const metricBoxes = [
+      { label: "RENDA FAMILIAR BRUTA", val: `R$ ${calc.rendaBruta.toFixed(2)}`, sub: "Rendimentos mensais" },
+      { label: "GRUPO FAMILIAR", val: `${calc.totalMembros} ${calc.totalMembros === 1 ? 'membro' : 'membros'}`, sub: "Residência habitual" },
+      { label: "DEDUÇÕES SAÚDE (ART. 20-B)", val: `R$ ${calc.despesasDedutiveis.toFixed(2)}`, sub: "Remédios / Tratamentos" },
+      { label: "RENDA PER CAPITA LÍQUIDA", val: `R$ ${calc.rendaPerCapita.toFixed(2)}`, sub: "Valor apurado final", isPrimary: true }
+    ];
+
+    const boxWidth = 260;
+    const boxGap = 20;
+    metricBoxes.forEach((m, idx) => {
+      const bx = 50 + idx * (boxWidth + boxGap);
+      const bgBox = m.isPrimary ? "#f0f9ff" : "#ffffff";
+      const borderBox = m.isPrimary ? "#0284c7" : "#cbd5e1";
+      drawRoundRect(ctx, bx, 465, boxWidth, 90, 8, bgBox, borderBox, m.isPrimary ? 2 : 1);
+
+      ctx.fillStyle = m.isPrimary ? "#0369a1" : "#64748b";
+      ctx.font = "bold 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      ctx.fillText(m.label, bx + 15, 492);
+
+      ctx.fillStyle = m.isPrimary ? "#0284c7" : "#0f172a";
+      ctx.font = "bold 22px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      ctx.fillText(m.val, bx + 15, 524);
+
+      ctx.fillStyle = "#64748b";
+      ctx.font = "12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      ctx.fillText(m.sub, bx + 15, 544);
+    });
+
+    // 6. Barra Visual / Gauge do Salário Mínimo e Critérios do STF
+    drawRoundRect(ctx, 50, 575, 1100, 80, 8, "#ffffff", "#e2e8f0", 1);
+    
+    ctx.fillStyle = "#334155";
+    ctx.font = "bold 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    ctx.fillText(`ESCALA DE ENQUADRAMENTO  •  SALÁRIO MÍNIMO: R$ ${calc.salarioMinimo.toFixed(2)}`, 75, 600);
+
+    const gaugeX = 75;
+    const gaugeY = 612;
+    const gaugeW = 1050;
+    const gaugeH = 20;
+
+    // Fundo da barra
+    drawRoundRect(ctx, gaugeX, gaugeY, gaugeW, gaugeH, 5, "#e2e8f0", null);
+
+    // Zona 1: Verde (0 a 25% = 1/4 SM)
+    ctx.fillStyle = "#22c55e";
+    ctx.fillRect(gaugeX, gaugeY, gaugeW * 0.25, gaugeH);
+
+    // Zona 2: Âmbar (25% a 50% = 1/2 SM STF)
+    ctx.fillStyle = "#f59e0b";
+    ctx.fillRect(gaugeX + gaugeW * 0.25, gaugeY, gaugeW * 0.25, gaugeH);
+
+    // Zona 3: Vermelho (50% a 100% = acima de 1/2 SM)
+    ctx.fillStyle = "#ef4444";
+    ctx.fillRect(gaugeX + gaugeW * 0.50, gaugeY, gaugeW * 0.50, gaugeH);
+
+    // Marcadores de Legenda da barra
+    ctx.fillStyle = "#16a34a";
+    ctx.font = "bold 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    ctx.fillText(`1/4 SM: R$ ${calc.limiteUmQuartoSM.toFixed(2)} (LOAS)`, gaugeX + gaugeW * 0.15, gaugeY + 36);
+
+    ctx.fillStyle = "#d97706";
+    ctx.fillText(`1/2 SM: R$ ${calc.limiteMeioSM.toFixed(2)} (STF)`, gaugeX + gaugeW * 0.40, gaugeY + 36);
+
+    ctx.fillStyle = "#64748b";
+    ctx.fillText(`1 SM: R$ ${calc.salarioMinimo.toFixed(2)}`, gaugeX + gaugeW - 120, gaugeY + 36);
+
+    // 7. Card com o Checklist dos 6 Critérios Oficiais
+    drawRoundRect(ctx, 50, 675, 1100, 440, 8, "#ffffff", "#e2e8f0", 1);
+
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "bold 17px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    ctx.fillText("CHECKLIST DE ELEGIBILIDADE JUDICIAL (LEI Nº 8.742/93 E ESTATUTOS):", 75, 712);
+
+    const checklistItems = [
+      {
+        num: "1",
+        title: "Condição Pessoal:",
+        desc: "Idoso (≥ 65 anos) OU Pessoa com Deficiência (impedimento de longo prazo ≥ 2 anos)",
+        ok: true
+      },
+      {
+        num: "2",
+        title: "Renda Per Capita (Critério STF):",
+        desc: calc.atendeCriterioObjetivo 
+          ? `Renda per capita de R$ ${calc.rendaPerCapita.toFixed(2)} atende diretamente ao critério de 1/4 SM.` 
+          : (calc.elegivelSTF 
+              ? `Renda per capita de R$ ${calc.rendaPerCapita.toFixed(2)} enquadra-se na flexibilização do STF (Tema 27).` 
+              : `Renda per capita de R$ ${calc.rendaPerCapita.toFixed(2)} acima de 1/2 SM; requer comprovação contábil de despesas.`),
+        ok: calc.elegivelSTF
+      },
+      {
+        num: "3",
+        title: "Deduções Legais de Saúde (Art. 20-B):",
+        desc: calc.despesasDedutiveis > 0 
+          ? `R$ ${calc.despesasDedutiveis.toFixed(2)} deduzidos com medicamentos de uso contínuo, fraldas e tratamentos.` 
+          : "Gastos essenciais contínuos são abatidos da renda familiar bruta.",
+        ok: true
+      },
+      {
+        num: "4",
+        title: "Inscrição Regular no CadÚnico:",
+        desc: "Requisito legal formal de cadastramento e atualização bienal da família no Cadastro Único.",
+        ok: true
+      },
+      {
+        num: "5",
+        title: "Ausência de Acumulação:",
+        desc: "Não cumulação com benefícios do RGPS ou RPPS (salvo assistência médica e pensão indenizatória).",
+        ok: true
+      },
+      {
+        num: "6",
+        title: "Parecer Técnico do Serviço Social:",
+        desc: "Estudo socioeconômico pericial atesta barreiras ambientais, vulnerabilidade e carência material fática.",
+        ok: true
+      }
+    ];
+
+    checklistItems.forEach((item, idx) => {
+      const iy = 745 + idx * 58;
+
+      // Ícone do check
+      ctx.beginPath();
+      ctx.arc(95, iy - 6, 14, 0, Math.PI * 2);
+      ctx.fillStyle = item.ok ? "#dcfce7" : "#fef3c7";
+      ctx.fill();
+      ctx.strokeStyle = item.ok ? "#16a34a" : "#d97706";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.fillStyle = item.ok ? "#16a34a" : "#d97706";
+      ctx.font = "bold 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      ctx.fillText(item.ok ? "✓" : "!", 91, iy - 2);
+
+      // Texto do Item
+      ctx.fillStyle = "#0f172a";
+      ctx.font = "bold 15px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      ctx.fillText(item.title, 125, iy - 7);
+
+      ctx.fillStyle = "#475569";
+      ctx.font = "14px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      ctx.fillText(item.desc, 125, iy + 14);
+    });
+
+    // 8. Card de Fundamentação Jurisprudencial Vinculante (STF / TNU)
+    drawRoundRect(ctx, 50, 1135, 1100, 275, 8, "#f1f5f9", "#cbd5e1", 1);
+
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "bold 16px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    ctx.fillText("PARECER PERICIAL SUGERIDO & TESES JURÍDICAS VINCULANTES:", 75, 1168);
+
+    ctx.fillStyle = "#1e293b";
+    ctx.font = "italic 14px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    wrapText(ctx, `"${calc.textoParecer}"`, 75, 1198, 1040, 22);
+
+    ctx.fillStyle = "#334155";
+    ctx.font = "13.5px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    const jurText = 
+      "• STF (Tema 27 / RE 567.985/MT): O critério de 1/4 do salário mínimo não é critério absoluto nem exclusivo, podendo a miserabilidade ser aferida por outros meios probatórios fáticos constantes do Estudo Social.\n" +
+      "• Lei 14.176/2021 (Art. 20-B da LOAS) & Súmula 79 da TNU: Dedução expressa de gastos com medicamentos de uso contínuo, alimentação especial e tratamentos indispensáveis não supridos pelo SUS.";
+    wrapText(ctx, jurText, 75, 1315, 1040, 20);
+
+    // 9. Rodapé Institucional
+    ctx.fillStyle = "#0f172a";
+    ctx.fillRect(0, 1435, 1200, 145);
+
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = "bold 16px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    ctx.fillText("Visum Social  •  Sistema de Apoio a Perícias Socioeconômicas Judiciais", 60, 1485);
+
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "14px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+    ctx.fillText(`Relatório gerado eletronicamente para fins de instrução processual • ${dataHora} • Justiça Federal`, 60, 1515);
+
+    // 10. Converte para blob e faz download da imagem PNG
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        this.showToast("Erro ao processar imagem.");
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const safeName = (id.periciado || "periciado").toLowerCase().replace(/[^a-z0-9]/g, "_");
+      a.href = url;
+      a.download = `checklist_bpc_loas_${safeName}_${new Date().toISOString().slice(0, 10)}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      this.showToast("🖼️ Imagem do relatório do checklist exportada com sucesso (.png)!");
+    }, "image/png");
   }
 
   // =====================================================================

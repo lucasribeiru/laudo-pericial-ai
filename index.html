@@ -41,232 +41,224 @@
 <body>
 
   <!-- =====================================================================
-       CABEÇALHO SUPERIOR (VISUM SOCIAL BRANDING)
+       CABEÇALHO SUPERIOR (VISUM SOCIAL - LIMPO, INTUITIVO E ELEGANTE)
        ===================================================================== -->
   <header class="app-header">
     <div class="brand-container">
       <img src="visum_social_logo.jpg" alt="Visum Social" class="brand-logo-img">
       <div class="brand-title-group">
         <div class="brand-title">
-          <span class="brand-name-visum">VISUM</span>
-          <span class="brand-name-social">SOCIAL</span>
-          <span class="badge-pro">CRESS / TRF1</span>
+          <span class="brand-name-visum">VISUM</span><span class="brand-name-social">SOCIAL</span>
         </div>
-        <span class="brand-subtitle">Perícias Socioeconômicas Judiciais • BPC/LOAS</span>
+        <span class="brand-subtitle">Assistência Social & Judicial · BPC/LOAS</span>
       </div>
     </div>
 
+    <!-- Centro: Modos de Visualização (Segmented Control Limpo e Intuitivo) -->
+    <div class="header-center">
+      <div class="view-mode-tabs" id="viewModeTabs" role="tablist" aria-label="Modo de Visualização">
+        <button type="button" class="view-mode-tab" id="modeChat" onclick="app.setLayoutMode('chat')" title="Focar na Instrução Processual e Chat">
+          <span class="tab-icon">💬</span>
+          <span class="tab-label">Instrução & Chat</span>
+        </button>
+        <button type="button" class="view-mode-tab active" id="modeSplit" onclick="app.setLayoutMode('split')" title="Visão Integrada: Instruções e Laudo A4 lado a lado">
+          <span class="tab-icon">◫</span>
+          <span class="tab-label">Visão Integrada</span>
+        </button>
+        <button type="button" class="view-mode-tab" id="modeDoc" onclick="app.setLayoutMode('doc')" title="Focar no Laudo Oficial A4 em tela cheia">
+          <span class="tab-icon">📄</span>
+          <span class="tab-label">Laudo Oficial A4</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Direita: Ações Consolidadas e Diretas -->
     <div class="header-actions">
-      <!-- Alternar Split View Desktop -->
-      <button id="btnToggleSplit" class="btn-icon hide-mobile" title="Alternar Modo Tela Cheia / Dividida" aria-label="Alternar divisão de tela">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M4 19h16V5H4v14zm2-12h5v10H6V7zm7 0h5v10h-5V7z"/>
-        </svg>
+      <!-- Checklist BPC/LOAS (Critérios STF) -->
+      <button class="btn-header bpc-action-btn" id="btnBpcChecklistTop" onclick="app.openBpcEligibilityModal()" title="Checklist de Elegibilidade BPC/LOAS com Critérios do STF (1/4 SM)">
+        <span>⚖️</span>
+        <span>Checklist BPC (STF)</span>
       </button>
 
-      <!-- Ficha Resumo Rápida -->
-      <button class="btn-header secondary hide-mobile" onclick="app.openSummaryModal()" title="Ver Ficha Técnica Resumida da Perícia">
-        <span>📋</span>
-        <span>Ficha Técnica</span>
+      <!-- Dropdown Consolidado de Exportação -->
+      <div class="export-dropdown-wrapper" id="exportDropdownWrapper">
+        <button type="button" class="btn-header primary btn-export-toggle" id="btnExportToggle" onclick="app.toggleExportDropdown(event)" title="Opções de exportação do laudo oficial">
+          <span>📥</span>
+          <span>Exportar</span>
+          <span class="dropdown-chevron">▾</span>
+        </button>
+        <div class="export-dropdown-menu" id="exportDropdownMenu" style="display: none;">
+          <button type="button" class="export-menu-item" id="btnDownloadDocxTop" onclick="app.exportToWord(); app.closeExportDropdown();" title="Baixar Laudo Oficial no formato Microsoft Word (.docx)">
+            <span class="export-item-icon">📄</span>
+            <div class="export-item-text">
+              <strong>Microsoft Word (.docx)</strong>
+              <small>Modelo Oficial da Justiça Federal (editável)</small>
+            </div>
+          </button>
+          <button type="button" class="export-menu-item" id="btnDownloadPdfTop" onclick="app.exportToPdf(); app.closeExportDropdown();" title="Baixar diretamente em PDF para juntada">
+            <span class="export-item-icon">📑</span>
+            <div class="export-item-text">
+              <strong>Documento PDF (.pdf)</strong>
+              <small>Formato final oficial pronto para protocolo</small>
+            </div>
+          </button>
+          <button type="button" class="export-menu-item" onclick="window.print(); app.closeExportDropdown();" title="Imprimir laudo diretamente na impressora">
+            <span class="export-item-icon">🖨️</span>
+            <div class="export-item-text">
+              <strong>Imprimir Laudo</strong>
+              <small>Impressão nativa das folhas A4</small>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Processos & Perícias Salvas -->
+      <button id="btnListarPericias" class="btn-header" onclick="app.togglePericiasPanel()" title="Ver processos e perícias salvas">
+        <span>🗂️</span>
+        <span class="hide-mobile">Processos</span>
       </button>
 
+      <!-- Configurações IA Gemini -->
+      <button class="btn-icon" id="btnSettings" onclick="app.openSettingsModal()" title="Configurações da IA Gemini" aria-label="Configurações">
+        ⚙️
+      </button>
+
+      <!-- Alternar Tema -->
       <button id="btnThemeToggle" class="btn-icon" title="Alternar Tema Claro/Escuro" aria-label="Alternar tema">
         🌙
       </button>
 
-      <button class="btn-header" id="btnSalvarPericia" onclick="app.salvarPericiaAtual()" title="Salvar perícia no banco de dados">
-        <span>💾</span>
-        <span class="hide-mobile">Salvar</span>
-      </button>
-
-      <button id="btnListarPericias" class="btn-header" onclick="app.togglePericiasPanel()" title="Perícias salvas no banco de dados">
-        <span>🗂️</span>
-        <span class="hide-mobile">Perícias Salvas</span>
-      </button>
-
-      <button id="btnDownloadPdfTop" class="btn-header hide-mobile" onclick="app.exportToPdf()" title="Baixar diretamente em PDF">
-        <span>📄</span>
-        <span>Baixar PDF</span>
-      </button>
-
-      <button id="btnDownloadDocxTop" class="btn-header primary" onclick="app.exportToWord()" title="Baixar arquivo editável do Word">
-        <span>📥</span>
-        <span>Word (.docx)</span>
-      </button>
+      <!-- Elementos Auxiliares Ocultos Mantidos para Compatibilidade de Scripts -->
+      <div style="display:none;">
+        <button class="chip-btn" id="btnNovoLaudo" onclick="app.resetToBlankForm()"></button>
+        <button class="chip-btn" data-case="mazagao"></button>
+        <button id="btnSalvarPericia" onclick="app.salvarPericiaAtual()"></button>
+        <button id="btnToggleSplit"></button>
+        <button class="btn-header auth-btn" id="btnGoogleAuth" onclick="db.toggleAuth()">
+          <span id="authIcon">🔑</span><span id="authLabel">Google</span>
+        </button>
+        <button id="btnGoogleDocsTop" onclick="app.exportToGoogleDocs()"></button>
+        <button id="btnAutoFillContext" onclick="app.autoFillFromContext()"></button>
+        <span id="statusBadgeIA"></span>
+        <span id="statusBadgeBD"></span>
+        <span id="statusBadgeGDocs"><span id="gdocsTopDot"></span><span id="statusBadgeGDocsText"></span></span>
+        <span id="badgePagesCount"></span>
+      </div>
     </div>
   </header>
 
   <!-- =====================================================================
-       BARRA DE CASOS RÁPIDOS E AÇÕES PERICIAIS
-       ===================================================================== -->
-  <div class="quick-cases-bar">
-    <div class="quick-cases-left">
-      <span class="quick-case-label">Perícia Ativa:</span>
-      <button class="chip-btn active" id="btnNovoLaudo" onclick="app.resetToBlankForm()" title="Iniciar laudo 100% em branco para um novo periciado">
-        <span>✨</span> Modelo Oficial em Branco
-      </button>
-      <button class="chip-btn" data-case="mazagao" title="Carregar exemplo preenchido apenas para consulta/demonstração">
-        <span>✦</span> Exemplo Demonstrativo (Mazagão/AP)
-      </button>
-      <button class="chip-btn btn-autofill-chip" id="btnAutoFillContext" onclick="app.autoFillFromContext()" title="Auto-preencher o formulário A4 oficial com todos os dados e relatos discutidos no chat">
-        <span>⚡</span> Auto-preencher do Contexto
-      </button>
-    </div>
-    
-    <div class="quick-cases-right">
-      <!-- Indicador de Conexão IA e BD (clicáveis para configuração rápida) -->
-      <span class="status-badge" id="statusBadgeIA" onclick="app.openSettingsModal()" style="cursor:pointer;" title="Clique para configurar chave ou testar a IA">🤖 IA</span>
-      <span class="status-badge" id="statusBadgeBD" onclick="app.togglePericiasPanel()" style="cursor:pointer;" title="Clique para abrir painel de Perícias Salvas">💾 Banco de Dados</span>
-      <button class="chip-btn btn-summary-chip" onclick="app.openSummaryModal()" title="Abrir Ficha Resumo Rápida">
-        <span>📊</span> Ficha do Periciado
-      </button>
-      <span class="badge-pages-count" id="badgePagesCount">7 Páginas Judiciais (com Anexos)</span>
-    </div>
-  </div>
-
-  <!-- =====================================================================
-       PAINEL LATERAL DE PERÍCIAS SALVAS (BANCO DE DADOS LOCAL E EM PASTA)
+       PAINEL LATERAL DE PROCESSOS E PERÍCIAS SALVAS
        ===================================================================== -->
   <div class="pericias-panel" id="periciasPanel">
     <div class="pericias-panel-header">
-      <h3>🗂️ Perícias Salvas</h3>
+      <h3>🗂️ Processos & Perícias</h3>
       <button class="btn-icon" onclick="app.togglePericiasPanel()" title="Fechar">×</button>
     </div>
     
     <div class="pericias-panel-actions">
       <button type="button" class="btn-panel-action primary" onclick="app.salvarPericiaAtual()" title="Salvar perícia atual">
-        <span>💾</span> Salvar Perícia Atual
+        <span>💾</span> Salvar Caso Atual
+      </button>
+      <button type="button" class="btn-panel-action" onclick="app.resetToBlankForm(); app.togglePericiasPanel();" title="Iniciar um novo laudo em branco">
+        <span>✨</span> Novo Laudo em Branco
+      </button>
+      <button type="button" class="btn-panel-action" onclick="app.loadSampleCase('mazagao'); app.togglePericiasPanel();" title="Carregar caso demonstrativo completo">
+        <span>✦</span> Exemplo Demonstrativo
       </button>
       <button type="button" class="btn-panel-action" onclick="document.getElementById('importPericiaFileInput').click()" title="Abrir um arquivo salvo de qualquer pasta do seu computador">
-        <span>📁</span> Abrir da Pasta (.visum)
+        <span>📁</span> Abrir Arquivo (.visum)
       </button>
       <input type="file" id="importPericiaFileInput" accept=".visum,.json" style="display:none;" onchange="app.handleImportPericiaFile(event)">
     </div>
 
     <div class="pericias-search">
-      <input type="text" id="searchPericias" class="form-control" placeholder="🔍 Buscar por nome, CPF ou nº do processo..." oninput="app.buscarPericiasDebounced(this.value)">
+      <input type="text" id="searchPericias" class="form-control" placeholder="🔍 Buscar por nome, CPF ou processo..." oninput="app.buscarPericiasDebounced(this.value)">
     </div>
     <div class="pericias-list" id="periciasList">
-      <!-- Renderizado dinamicamente via JS em Cards Retrô-Modernos -->
-      <div class="pericias-empty">Nenhuma perícia salva ainda.<br>Clique em "💾 Salvar" para gravar a perícia atual.</div>
+      <div class="pericias-empty">Nenhuma perícia salva ainda.<br>Clique em "💾 Salvar Caso Atual" para gravar a perícia.</div>
     </div>
   </div>
 
   <!-- =====================================================================
-       CONTAINER PRINCIPAL (SPLIT VIEW NO DESKTOP / APP VIEWS NO MOBILE)
+       CONTAINER PRINCIPAL (LAYOUT MODES: SPLIT, CHAT OU DOC)
        ===================================================================== -->
-  <main class="main-container" id="mainContainer">
+  <main class="main-container layout-split" id="mainContainer">
     
-    <!-- PAINEL ESQUERDO: CHAT IA GEMINI & VISITA DOMICILIAR -->
+    <!-- PAINEL ESQUERDO: INSTRUÇÃO PROCESSUAL, ATENDIMENTO & CHAT -->
     <section class="chat-pane" id="chatPane">
       
-      <!-- CARDS DE FLUXO RETRÔ-MODERNO (ABSURDAMENTE SIMPLES PARA USUÁRIO LEIGO) -->
-      <div class="retro-flow-cards">
-        <div class="flow-card" onclick="app.scrollToPage(1)" title="Ir para identificação do periciado">
-          <div class="flow-card-icon">👤</div>
-          <div class="flow-card-content">
-            <strong>1. Periciado</strong>
-            <span>Nome e CPF</span>
-          </div>
+      <!-- CABEÇALHO DO ATENDIMENTO PROCESSUAL -->
+      <div class="chat-header-bar">
+        <div class="chat-header-info">
+          <span class="chat-header-title">Instrução Social & Judicial</span>
+          <span class="chat-header-subtitle" id="chatCaseSubtitle">Perícia Socioeconômica · BPC/LOAS (STF Tema 27)</span>
         </div>
-        <div class="flow-card" onclick="document.getElementById('fileInput').click()" title="Anexar fotos da casa e documentos">
-          <div class="flow-card-icon">📸</div>
-          <div class="flow-card-content">
-            <strong>2. Fotos & Docs</strong>
-            <span>Fachada e cômodos</span>
-          </div>
-        </div>
-        <div class="flow-card" onclick="app.scrollToPage(2)" title="Ir para situação da família e renda">
-          <div class="flow-card-icon">💰</div>
-          <div class="flow-card-content">
-            <strong>3. Renda Familiar</strong>
-            <span>Critério LOAS</span>
-          </div>
-        </div>
-        <div class="flow-card" onclick="app.scrollToPage(7)" title="Ver fotos anexadas no relatório">
-          <div class="flow-card-icon">🖼️</div>
-          <div class="flow-card-content">
-            <strong>4. Anexos Oficiais</strong>
-            <span>Fotos no laudo</span>
-          </div>
-        </div>
-        <div class="flow-card highlight" onclick="app.exportToWord()" title="Baixar arquivo oficial do Word">
-          <div class="flow-card-icon">📥</div>
-          <div class="flow-card-content">
-            <strong>5. Baixar Word</strong>
-            <span>Laudo Oficial .docx</span>
-          </div>
+        <div class="chat-header-actions">
+          <button type="button" class="chat-header-btn" onclick="app.autoFillFromContext()" title="Preencher o laudo oficial A4 com as informações do diálogo">
+            <span>⚡</span> <span>Preencher Laudo</span>
+          </button>
+          <button type="button" class="chat-header-btn" onclick="app.resetToBlankForm()" title="Iniciar novo atendimento do zero">
+            <span>✨</span> <span>Limpar</span>
+          </button>
         </div>
       </div>
 
-      <!-- Lista de Mensagens -->
+      <!-- Lista de Mensagens do Chat -->
       <div class="messages-container" id="messagesContainer">
-        <!-- As mensagens e respostas da IA serão injetadas dinamicamente aqui -->
+        <!-- Mensagens, pareceres e cartões da IA injetados dinamicamente aqui -->
       </div>
 
-      <!-- Dock de Entrada (Modern Social Work Style) -->
+      <!-- Dock de Entrada (Moderno, Despoluído e Fluido) -->
       <div class="chat-input-wrapper">
-        <!-- Atalhos Rápido para a Assistente Social -->
-        <div class="social-work-quick-chips">
-          <button type="button" class="quick-prompt-chip autofill-chip" onclick="app.autoFillFromContext()" title="Puxar dados do diálogo no chat e preencher a folha A4 oficial">
-            ⚡ Auto-preencher Laudo (Contexto)
-          </button>
-          <button type="button" class="quick-prompt-chip" onclick="app.insertPromptSuggestion('foto')">
-            📷 Foto Moradia
-          </button>
-          <button type="button" class="quick-prompt-chip" onclick="app.insertPromptSuggestion('cadunico')">
-            📋 CadÚnico / Renda
-          </button>
-          <button type="button" class="quick-prompt-chip" onclick="app.insertPromptSuggestion('saude')">
-            🩺 CID / Saúde
-          </button>
-          <button type="button" class="quick-prompt-chip" onclick="app.insertPromptSuggestion('familia')">
-            👨‍👩‍👧 Grupo Familiar
-          </button>
-        </div>
+        <!-- Lista de Arquivos Preparados para Envio -->
+        <div class="staged-files-bar" id="stagedFilesBar" style="display: none;"></div>
 
         <div class="chat-input-box" id="chatInputBox">
-          
-          <!-- Lista de Arquivos Preparados para Envio -->
-          <div class="staged-files-bar" id="stagedFilesBar" style="display: none;"></div>
+          <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;">
+          <input type="file" id="fileInput" multiple accept=".pdf,image/*,.doc,.docx,.txt" style="display: none;">
+          <input type="file" id="anexoDirectInput" multiple accept="image/*,.pdf" style="display: none;">
 
-          <div class="input-row">
-            <!-- Botão de Câmera In Loco (Mobile First) -->
-            <button type="button" class="btn-input-action" id="btnCamera" title="Tirar foto in loco com a câmera do celular">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
-                <path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/>
-              </svg>
-            </button>
-            <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;">
+          <div class="input-main-row">
+            <div class="input-actions-left">
+              <button type="button" class="btn-input-attach" id="btnUpload" title="Anexar documentos, laudos ou fotos da moradia" aria-label="Anexar arquivos">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                </svg>
+              </button>
+              <button type="button" class="btn-input-attach hide-mobile" id="btnCamera" title="Tirar foto in loco com a câmera" aria-label="Câmera">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                  <circle cx="12" cy="13" r="4"></circle>
+                </svg>
+              </button>
+              <button type="button" class="btn-input-attach bpc-inline-shortcut" onclick="app.openBpcEligibilityModal()" title="Abrir Checklist BPC/LOAS (Critérios STF)">
+                ⚖️
+              </button>
+            </div>
 
-            <!-- Botão de Anexo (PDFs, fotos da galeria, laudos) -->
-            <button type="button" class="btn-input-action" id="btnUpload" title="Anexar documentos (PDFs, fotos da moradia, comprovantes)">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .83-.67 1.5-1.5 1.5s-1.5-.67-1.5-1.5V6H9v9.5a3 3 0 0 0 6 0V5a4 4 0 0 0-8 0v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
-              </svg>
-            </button>
-            <input type="file" id="fileInput" multiple accept=".pdf,image/*,.doc,.docx,.txt" style="display: none;">
-            <input type="file" id="anexoDirectInput" multiple accept="image/*,.pdf" style="display: none;">
-
-            <!-- Caixa de Texto -->
+            <!-- Caixa de Texto Fluida -->
             <textarea 
               id="chatInput" 
               class="chat-textarea" 
               rows="1" 
-              placeholder="Digite observações da visita domiciliar ou anexe fotos e documentos..."></textarea>
+              placeholder="Descreva o caso, renda familiar, despesas ou tire dúvidas sobre o processo..."></textarea>
 
             <!-- Botão Enviar -->
-            <button type="button" class="btn-send" id="btnSend" title="Enviar para extração e preenchimento com IA">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <button type="button" class="btn-send" id="btnSend" title="Enviar para processamento pericial">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
               </svg>
             </button>
           </div>
         </div>
 
-        <div class="input-footer-hint">
-          <span>💡 <strong>Dica da Perita:</strong> Tire fotos da residência in loco ou anexe CadÚnico/RG. A IA analisa as imagens e preenche a folha A4 oficial automaticamente.</span>
+        <div class="chat-input-helper-text">
+          <span>Enter para enviar</span>
+          <span class="helper-sep">·</span>
+          <span>Shift+Enter para nova linha</span>
+          <span class="helper-sep">·</span>
+          <a href="javascript:void(0)" onclick="app.openBpcEligibilityModal()">⚖️ Checklist BPC/LOAS</a>
         </div>
       </div>
     </section>
@@ -274,48 +266,59 @@
     <!-- PAINEL DIREITO: VISUALIZAÇÃO E EDIÇÃO EM TEMPO REAL DA FOLHA A4 -->
     <section class="document-pane" id="documentPane">
       
-      <!-- Toolbar do Documento -->
+      <!-- Toolbar do Documento (Limpa, Direta e Focada) -->
       <div class="doc-toolbar">
         <div class="doc-info">
-          <div class="status-indicator synced" id="docSyncIndicator" title="Em sincronia"></div>
-          <span class="doc-sync-text" id="docSyncText">Em sincronia</span>
+          <span class="doc-title-text">Laudo Pericial Oficial (Anexo IV)</span>
+          <span class="doc-status-chip" title="Documento sincronizado em tempo real">
+            <span class="status-indicator synced" id="docSyncIndicator"></span>
+            <span class="doc-sync-text" id="docSyncText">Sincronizado</span>
+          </span>
+        </div>
 
-          <div class="doc-page-nav" id="docPageNav" title="Navegação rápida entre páginas">
-            <button type="button" class="btn-page-chip active" onclick="app.scrollToPage(1)" data-page="1">Pág 1</button>
-            <button type="button" class="btn-page-chip" onclick="app.scrollToPage(2)" data-page="2">Pág 2</button>
-            <button type="button" class="btn-page-chip" onclick="app.scrollToPage(3)" data-page="3">Pág 3</button>
-            <button type="button" class="btn-page-chip" onclick="app.scrollToPage(4)" data-page="4">Pág 4</button>
-            <button type="button" class="btn-page-chip" onclick="app.scrollToPage(5)" data-page="5">Pág 5</button>
-            <button type="button" class="btn-page-chip" onclick="app.scrollToPage(6)" data-page="6">Pág 6</button>
-            <button type="button" class="btn-page-chip" onclick="app.scrollToPage(7)" data-page="7">Pág 7 (Anexos)</button>
-          </div>
+        <!-- Seletor Rápido de Página -->
+        <div class="doc-page-stepper">
+          <button type="button" class="btn-stepper" onclick="app.prevPage()" title="Página Anterior">◀</button>
+          <select id="docPageSelect" class="doc-page-dropdown" onchange="app.scrollToPage(parseInt(this.value, 10))">
+            <option value="1">Pág 1 · Identificação & Periciado</option>
+            <option value="2">Pág 2 · Grupo Familiar & Renda</option>
+            <option value="3">Pág 3 · Situação de Moradia</option>
+            <option value="4">Pág 4 · Bens Móveis & Serviços</option>
+            <option value="5">Pág 5 · Despesas Mensais & Saúde</option>
+            <option value="6">Pág 6 · Parecer Técnico Social</option>
+            <option value="7">Pág 7 · Fotos & Anexos da Visita</option>
+          </select>
+          <button type="button" class="btn-stepper" onclick="app.nextPage()" title="Próxima Página">▶</button>
         </div>
 
         <div class="doc-actions-group">
           <!-- Controles de Zoom -->
           <div class="doc-zoom-controls">
-            <button type="button" class="btn-zoom" id="btnZoomOut" onclick="app.zoomOut()" title="Diminuir Zoom (-)">−</button>
+            <button type="button" class="btn-zoom" id="btnZoomOut" onclick="app.zoomOut()" title="Diminuir Zoom (−)">−</button>
             <span class="zoom-level-text" id="zoomLevelText" onclick="app.resetZoom()" title="Clique para redefinir para 100%">100%</span>
             <button type="button" class="btn-zoom" id="btnZoomIn" onclick="app.zoomIn()" title="Aumentar Zoom (+)">+</button>
             <button type="button" class="btn-zoom fit-btn" id="btnZoomFit" onclick="app.fitToWidth()" title="Ajustar à largura da tela">⛶ Ajustar</button>
           </div>
 
-          <button class="btn-action-doc autofill-btn" id="btnDocAutoFill" onclick="app.autoFillFromContext()" title="Preencher automaticamente campos da folha A4 com dados da conversa atual">
-            <span>⚡</span>
-            <span>Preencher do Chat</span>
-          </button>
-          <button class="btn-action-doc hide-mobile" id="btnPrintPdf" title="Imprimir o laudo oficial">
-            <span>🖨️</span>
-            <span>Imprimir</span>
-          </button>
-          <button class="btn-action-doc" id="btnDownloadPdf" title="Baixar arquivo PDF oficial">
-            <span>📄</span>
-            <span>PDF</span>
-          </button>
-          <button class="btn-action-doc docx-btn" id="btnDownloadDocx" title="Baixar arquivo oficial editável do Microsoft Word">
-            <span>📥</span>
-            <span>Word (.docx)</span>
-          </button>
+          <!-- Fallbacks ocultos para compatibilidade com event listeners do JS -->
+          <div style="display:none;">
+            <div id="docPageNav">
+              <button class="btn-page-chip active" data-page="1"></button>
+              <button class="btn-page-chip" data-page="2"></button>
+              <button class="btn-page-chip" data-page="3"></button>
+              <button class="btn-page-chip" data-page="4"></button>
+              <button class="btn-page-chip" data-page="5"></button>
+              <button class="btn-page-chip" data-page="6"></button>
+              <button class="btn-page-chip" data-page="7"></button>
+            </div>
+            <button id="btnDocAutoFill"></button>
+            <button id="btnPrintPdf"></button>
+            <button id="btnDownloadPdf"></button>
+            <button id="btnDocGoogleDocs"></button>
+            <button id="btnDownloadDocx"></button>
+            <button id="btnResumoCaso"></button>
+            <div id="gdocsLastSyncBadge"><span id="gdocsSyncDot"></span><span id="gdocsSyncIcon"></span><span id="gdocsSyncTime"></span><span id="gdocsSyncLinkIcon"></span></div>
+          </div>
         </div>
       </div>
 
@@ -419,6 +422,36 @@
       <div class="modal-actions">
         <button class="btn-header" onclick="app.closeSettingsModal()">Cancelar</button>
         <button class="btn-header primary" id="btnSaveSettings">Salvar Configurações</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL DE CHECKLIST DE ELEGIBILIDADE BPC/LOAS - CRITÉRIOS DO STF
+       ===================================================================== -->
+  <div class="modal-overlay" id="bpcEligibilityModal">
+    <div class="modal-dialog modal-summary-dialog" style="max-width: 720px;">
+      <div class="modal-header">
+        <h3>
+          <span>⚖️</span> Checklist de Elegibilidade BPC/LOAS (Critérios STF)
+        </h3>
+        <button class="btn-icon" onclick="app.closeBpcEligibilityModal()" title="Fechar">&times;</button>
+      </div>
+
+      <div class="modal-body bpc-modal-body" id="bpcModalBody">
+        <!-- Renderizado dinamicamente via JS -->
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-header" onclick="app.closeBpcEligibilityModal()">Fechar</button>
+        <button class="btn-header" onclick="app.exportBpcChecklistTxt()" title="Baixar relatório técnico da análise preliminar como arquivo de texto (.txt)">
+          <span>📄</span> Exportar (.txt)
+        </button>
+        <button class="btn-header" onclick="app.exportBpcChecklistImage()" title="Gerar e baixar imagem do certificado de análise do checklist (.png)">
+          <span>🖼️</span> Exportar Imagem (.png)
+        </button>
+        <button class="btn-header" onclick="app.copyBpcFundamentacaoToChat()"><span>💬</span> Enviar ao Chat</button>
+        <button class="btn-header primary" onclick="app.applyBpcChecklistToForm()"><span>📝</span> Aplicar ao Laudo Oficial (A4)</button>
       </div>
     </div>
   </div>

@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt'])
+        && data.uid is string && data.uid == request.auth.uid && data.uid.size() <= 128
+        && data.email is string && data.email.size() <= 150
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 150))
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 1000))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64));
+    }
+
+    function isValidPericia(data, userId) {
+      return data.keys().hasAll(['userId', 'nome_periciado'])
+        && data.userId is string && data.userId == userId && data.userId == request.auth.uid
+        && data.nome_periciado is string && data.nome_periciado.size() <= 200
+        && (!('numero_processo' in data) || (data.numero_processo is string && data.numero_processo.size() <= 100))
+        && (!('cpf_periciado' in data) || (data.cpf_periciado is string && data.cpf_periciado.size() <= 30))
+        && (!('municipio' in data) || (data.municipio is string && data.municipio.size() <= 100))
+        && (!('uf' in data) || (data.uf is string && data.uf.size() <= 10))
+        && (!('status' in data) || (data.status is string && data.status.size() <= 30))
+        && (!('perito_nome' in data) || (data.perito_nome is string && data.perito_nome.size() <= 150))
+        && (!('perito_cress' in data) || (data.perito_cress is string && data.perito_cress.size() <= 80))
+        && (!('renda_total' in data) || data.renda_total is number)
+        && (!('renda_per_capita' in data) || data.renda_per_capita is number)
+        && (!('parecer_favoravel' in data) || data.parecer_favoravel is bool)
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 64))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    // Perfil do Usuário / Perito
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUser(incoming())
+                    && incoming().uid == existing().uid;
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // Subcoleção de Perícias do Usuário
+      match /pericias/{periciaId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(periciaId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(periciaId)
+                      && isValidPericia(incoming(), userId);
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(periciaId)
+                      && isValidPericia(incoming(), userId)
+                      && incoming().userId == existing().userId;
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(periciaId);
+      }
+    }
+
+    // Coleção para teste de conexão na inicialização
+    match /test/{docId} {
+      allow read, write: if isSignedIn();
+    }
+  }
+}
