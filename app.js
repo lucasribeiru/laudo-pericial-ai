@@ -622,7 +622,10 @@ DIRETRIZES DA SUA RESPOSTA:
         const timeout = setTimeout(() => controller.abort(), 20000);
         const res = await fetch(url, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "x-goog-api-key": this.apiKey
+          },
           signal: controller.signal,
           body: JSON.stringify({
             contents: [{ parts: [{ text: tutorPrompt }] }],
@@ -845,7 +848,10 @@ Formato obrigatório das chaves:
 
           response = await fetch(url, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+              "Content-Type": "application/json",
+              "x-goog-api-key": this.apiKey
+            },
             signal: controller.signal,
             body: JSON.stringify({
               contents: [{ parts: contentsParts }],
