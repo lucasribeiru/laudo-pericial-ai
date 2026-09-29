@@ -336,6 +336,8 @@ class PericiaDocxGenerator {
           ${enc.cress || "CRESS 104 24ª Região-AP"}</p>
         </div>
 
+        ${this.buildHtmlAnexos(d.anexos, brasaoImgSrc)}
+
         <div class="official-page-footer">
           <span>Rodovia Norte Sul, s/n – Bairro Infraero II, CEP. 68908-911 - Macapá-AP, site: portal.trf1.jus.br/sjap. Fones: 3251-5507</span>
         </div>
@@ -881,11 +883,226 @@ class PericiaDocxGenerator {
             ...sec3,
             ...sec4,
             ...sec5,
-            ...sec6
+            ...sec6,
+            ...this.buildOpenXmlAnexos(d.anexos, createSectionHeader, FONT_FAMILY, COLOR_BORDER)
           ]
         }
       ]
     });
+  }
+
+  /**
+   * Constrói a seção de Anexos no formato OpenXML (Word .docx nativo)
+   */
+  buildOpenXmlAnexos(anexos, createSectionHeader, font, borderColor) {
+    if (!Array.isArray(anexos) || anexos.length === 0) return [];
+
+    const { Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, WidthType, BorderStyle, ImageRun } = this.docx;
+    const elements = [];
+
+    elements.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 400, after: 140 },
+        children: [
+          new TextRun({ text: "ANEXOS DOCUMENTAIS E REGISTROS FOTOGRÁFICOS DA VISITA", bold: true, size: 22, font, underline: {} })
+        ]
+      })
+    );
+
+    const fotos = anexos.filter(a => a.tipo === "foto" || (a.mime && a.mime.startsWith("image/")) || (a.name && /\.(jpg|jpeg|png|webp)$/i.test(a.name)));
+    const docs = anexos.filter(a => !(a.tipo === "foto" || (a.mime && a.mime.startsWith("image/")) || (a.name && /\.(jpg|jpeg|png|webp)$/i.test(a.name))));
+
+    // Fotos anexadas
+    if (fotos.length > 0) {
+      elements.push(
+        new Paragraph({
+          spacing: { before: 100, after: 80 },
+          children: [
+            new TextRun({ text: "1. REGISTROS FOTOGRÁFICOS DA MORADIA E VISITA IN LOCO", bold: true, size: 20, font })
+          ]
+        })
+      );
+
+      for (let i = 0; i < fotos.length; i++) {
+        const f = fotos[i];
+        if (f.base64 && ImageRun) {
+          try {
+            const binStr = atob(f.base64);
+            const bytes = new Uint8Array(binStr.length);
+            for (let j = 0; j < binStr.length; j++) bytes[j] = binStr.charCodeAt(j);
+
+            elements.push(
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 120, after: 40 },
+                children: [
+                  new ImageRun({
+                    data: bytes,
+                    transformation: { width: 420, height: 280 }
+                  })
+                ]
+              })
+            );
+          } catch (err) {
+            console.warn("Não foi possível renderizar imagem no OpenXML:", err);
+          }
+        }
+
+        elements.push(
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 20, after: 160 },
+            children: [
+              new TextRun({ text: `Foto ${i + 1}: `, bold: true, size: 18, font }),
+              new TextRun({ text: f.legenda || f.nome || "Registro fotográfico in loco", italics: true, size: 18, font })
+            ]
+          })
+        );
+      }
+    }
+
+    // Documentos digitalizados
+    if (docs.length > 0) {
+      elements.push(
+        new Paragraph({
+          spacing: { before: 180, after: 80 },
+          children: [
+            new TextRun({ text: "2. DOCUMENTOS OFICIAIS E COMPROBATÓRIOS JUNTADOS", bold: true, size: 20, font })
+          ]
+        })
+      );
+
+      const rows = [
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: 10, type: WidthType.PERCENTAGE },
+              borders: { top: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, bottom: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, left: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, right: { style: BorderStyle.SINGLE, size: 4, color: borderColor } },
+              children: [new Paragraph({ children: [new TextRun({ text: "Nº", bold: true, size: 18, font })] })]
+            }),
+            new TableCell({
+              width: { size: 45, type: WidthType.PERCENTAGE },
+              borders: { top: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, bottom: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, left: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, right: { style: BorderStyle.SINGLE, size: 4, color: borderColor } },
+              children: [new Paragraph({ children: [new TextRun({ text: "Documento / Arquivo", bold: true, size: 18, font })] })]
+            }),
+            new TableCell({
+              width: { size: 25, type: WidthType.PERCENTAGE },
+              borders: { top: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, bottom: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, left: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, right: { style: BorderStyle.SINGLE, size: 4, color: borderColor } },
+              children: [new Paragraph({ children: [new TextRun({ text: "Categoria", bold: true, size: 18, font })] })]
+            }),
+            new TableCell({
+              width: { size: 20, type: WidthType.PERCENTAGE },
+              borders: { top: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, bottom: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, left: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, right: { style: BorderStyle.SINGLE, size: 4, color: borderColor } },
+              children: [new Paragraph({ children: [new TextRun({ text: "Tamanho", bold: true, size: 18, font })] })]
+            })
+          ]
+        })
+      ];
+
+      docs.forEach((doc, idx) => {
+        rows.push(
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 10, type: WidthType.PERCENTAGE },
+                borders: { top: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, bottom: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, left: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, right: { style: BorderStyle.SINGLE, size: 4, color: borderColor } },
+                children: [new Paragraph({ children: [new TextRun({ text: String(idx + 1), size: 18, font })] })]
+              }),
+              new TableCell({
+                width: { size: 45, type: WidthType.PERCENTAGE },
+                borders: { top: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, bottom: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, left: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, right: { style: BorderStyle.SINGLE, size: 4, color: borderColor } },
+                children: [new Paragraph({ children: [new TextRun({ text: doc.nome || doc.name || "Documento Anexo", size: 18, font })] })]
+              }),
+              new TableCell({
+                width: { size: 25, type: WidthType.PERCENTAGE },
+                borders: { top: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, bottom: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, left: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, right: { style: BorderStyle.SINGLE, size: 4, color: borderColor } },
+                children: [new Paragraph({ children: [new TextRun({ text: doc.categoria || "Comprobatório", size: 18, font })] })]
+              }),
+              new TableCell({
+                width: { size: 20, type: WidthType.PERCENTAGE },
+                borders: { top: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, bottom: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, left: { style: BorderStyle.SINGLE, size: 4, color: borderColor }, right: { style: BorderStyle.SINGLE, size: 4, color: borderColor } },
+                children: [new Paragraph({ children: [new TextRun({ text: doc.tamanho || doc.size || "-", size: 18, font })] })]
+              })
+            ]
+          })
+        );
+      });
+
+      elements.push(
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows
+        })
+      );
+    }
+
+    return elements;
+  }
+
+  /**
+   * Constrói a seção de Anexos no formato HTML Fallback (.doc)
+   */
+  buildHtmlAnexos(anexos, brasaoImgSrc) {
+    if (!Array.isArray(anexos) || anexos.length === 0) return "";
+
+    const fotos = anexos.filter(a => a.tipo === "foto" || (a.mime && a.mime.startsWith("image/")) || (a.name && /\.(jpg|jpeg|png|webp)$/i.test(a.name)));
+    const docs = anexos.filter(a => !(a.tipo === "foto" || (a.mime && a.mime.startsWith("image/")) || (a.name && /\.(jpg|jpeg|png|webp)$/i.test(a.name))));
+
+    let fotosHtml = "";
+    if (fotos.length > 0) {
+      fotosHtml = `
+        <div class="section-title" style="margin-top: 15px;">REGISTROS FOTOGRÁFICOS DA VISITA IN LOCO</div>
+        <div style="margin-top: 10px;">
+          ${fotos.map((f, i) => `
+            <div style="text-align: center; margin-bottom: 20px; page-break-inside: avoid;">
+              ${f.base64 ? `<img src="data:${f.mime || 'image/jpeg'};base64,${f.base64}" style="max-width: 500px; max-height: 350px; border: 1.5px solid #000; padding: 2px;" alt="Foto ${i + 1}" />` : `<div style="border:1px dashed #666; padding:30px; font-size:10pt;">[Imagem: ${f.nome || f.name}]</div>`}
+              <div style="font-size: 9.5pt; font-style: italic; margin-top: 6px; font-weight: bold;">
+                Foto ${i + 1}: <span style="font-weight: normal;">${f.legenda || f.nome || "Registro fotográfico in loco da residência"}</span>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    let docsHtml = "";
+    if (docs.length > 0) {
+      docsHtml = `
+        <div class="section-title" style="margin-top: 20px;">DOCUMENTOS OFICIAIS E COMPROBATÓRIOS JUNTADOS</div>
+        <table class="data-table" style="margin-top: 8px;">
+          <thead>
+            <tr>
+              <th style="width: 8%;">Nº</th>
+              <th style="width: 45%;">DOCUMENTO / ARQUIVO</th>
+              <th style="width: 30%;">CATEGORIA</th>
+              <th style="width: 17%;">TAMANHO</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${docs.map((d, i) => `
+              <tr>
+                <td style="text-align: center;">${i + 1}</td>
+                <td>${d.nome || d.name || "Documento Anexo"}</td>
+                <td>${d.categoria || "Comprobatório"}</td>
+                <td>${d.tamanho || d.size || "-"}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+
+    return `
+      <div style="page-break-before: always; margin-top: 25px;">
+        <div class="judicial-header">
+          <img src="${brasaoImgSrc}" alt="Cabeçalho Oficial Justiça Federal" />
+          <div class="form-title">ANEXOS DA PERÍCIA SOCIOECONÔMICA</div>
+        </div>
+        ${fotosHtml}
+        ${docsHtml}
+      </div>
+    `;
   }
 }
 

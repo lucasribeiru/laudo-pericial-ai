@@ -104,22 +104,22 @@
   <div class="quick-cases-bar">
     <div class="quick-cases-left">
       <span class="quick-case-label">Perícia Ativa:</span>
-      <button class="chip-btn active" data-case="mazagao" title="Carregar modelo de referência oficial de Mazagão/AP">
-        <span>✦</span> Modelo Referência (Mazagão - AP)
+      <button class="chip-btn active" id="btnNovoLaudo" onclick="app.resetToBlankForm()" title="Iniciar laudo 100% em branco para um novo periciado">
+        <span>✨</span> Modelo Oficial em Branco
       </button>
-      <button class="chip-btn" id="btnNovoLaudo" onclick="app.resetToBlankForm()" title="Iniciar um laudo 100% em branco para um novo periciado">
-        <span>🧹</span> Novo Laudo em Branco
+      <button class="chip-btn" data-case="mazagao" title="Carregar exemplo preenchido apenas para consulta/demonstração">
+        <span>✦</span> Exemplo Demonstrativo (Mazagão/AP)
       </button>
     </div>
     
     <div class="quick-cases-right">
-      <!-- Indicador de Conexão IA e BD -->
-      <span class="status-badge" id="statusBadgeIA" title="Status da IA">🤖 IA Automática</span>
-      <span class="status-badge" id="statusBadgeBD" title="Status do Banco de Dados">💾 Local</span>
+      <!-- Indicador de Conexão IA e BD (clicáveis para configuração rápida) -->
+      <span class="status-badge" id="statusBadgeIA" onclick="app.openSettingsModal()" style="cursor:pointer;" title="Clique para configurar chave ou testar a IA">🤖 IA</span>
+      <span class="status-badge" id="statusBadgeBD" onclick="app.togglePericiasPanel()" style="cursor:pointer;" title="Clique para abrir painel de Perícias Salvas">💾 Banco de Dados</span>
       <button class="chip-btn btn-summary-chip" onclick="app.openSummaryModal()" title="Abrir Ficha Resumo Rápida">
         <span>📊</span> Ficha do Periciado
       </button>
-      <span class="badge-pages-count">6 Páginas A4 Judiciais</span>
+      <span class="badge-pages-count" id="badgePagesCount">7 Páginas Judiciais (com Anexos)</span>
     </div>
   </div>
 
@@ -193,6 +193,7 @@
               </svg>
             </button>
             <input type="file" id="fileInput" multiple accept=".pdf,image/*,.doc,.docx,.txt" style="display: none;">
+            <input type="file" id="anexoDirectInput" multiple accept="image/*,.pdf" style="display: none;">
 
             <!-- Caixa de Texto -->
             <textarea 
@@ -232,6 +233,7 @@
             <button type="button" class="btn-page-chip" onclick="app.scrollToPage(4)" data-page="4">Pág 4</button>
             <button type="button" class="btn-page-chip" onclick="app.scrollToPage(5)" data-page="5">Pág 5</button>
             <button type="button" class="btn-page-chip" onclick="app.scrollToPage(6)" data-page="6">Pág 6</button>
+            <button type="button" class="btn-page-chip" onclick="app.scrollToPage(7)" data-page="7">Pág 7 (Anexos)</button>
           </div>
         </div>
 

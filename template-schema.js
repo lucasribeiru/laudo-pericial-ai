@@ -134,7 +134,10 @@ const DEFAULT_FORM_DATA = {
     nomePerito: "Assistente Social Perito(a) Judicial",
     cargoPerito: "Doutora em Serviço Social",
     cress: "CRESS 104 24ª Região-AP"
-  }
+  },
+
+  // 9. Anexos Oficiais (Fotografias da Visita e Documentos Comprobatórios)
+  anexos: []
 };
 
 /**

@@ -6,7 +6,9 @@
 
 class PericiaApp {
   constructor() {
-    this.formData = JSON.parse(JSON.stringify(typeof SAMPLE_CASES !== "undefined" && SAMPLE_CASES.mazagao ? SAMPLE_CASES.mazagao.dados : DEFAULT_FORM_DATA));
+    // INICIALIZAÇÃO COM MODELO LIMPO OFICIAL: Nunca carrega dados de casos de exemplo por padrão
+    this.formData = JSON.parse(JSON.stringify(DEFAULT_FORM_DATA));
+    if (!this.formData.anexos) this.formData.anexos = [];
     this.stagedFiles = [];
     this.chatHistory = [];
     this.apiKey = localStorage.getItem("gemini_api_key") || "";
@@ -88,6 +90,9 @@ class PericiaApp {
 
     // Chips de casos rápidos
     this.quickChips = document.querySelectorAll(".chip-btn");
+
+    // Input de Anexo Direto da Folha de Anexos
+    this.anexoDirectInput = document.getElementById("anexoDirectInput");
   }
 
   initEventListeners() {
@@ -103,6 +108,11 @@ class PericiaApp {
     // Upload de arquivos e fotos
     this.btnUpload.addEventListener("click", () => this.fileInput.click());
     this.fileInput.addEventListener("change", (e) => this.handleFileSelect(e));
+
+    // Upload direto pela página de Anexos
+    if (this.anexoDirectInput) {
+      this.anexoDirectInput.addEventListener("change", (e) => this.handleAnexoDirectSelect(e));
+    }
 
     // Câmera in loco (celular / tablet)
     if (this.btnCamera && this.cameraInput) {
@@ -186,6 +196,42 @@ class PericiaApp {
     }
   }
 
+  async handleAnexoDirectSelect(e) {
+    if (e.target.files && e.target.files.length > 0) {
+      await this.addFilesToStage(Array.from(e.target.files), true);
+      e.target.value = "";
+      this.scrollToPage(7);
+    }
+  }
+
+  addAnexo(anexoObj, triggerRender = true) {
+    if (!this.formData.anexos) this.formData.anexos = [];
+    const exists = this.formData.anexos.some(a => a.nome === anexoObj.nome && a.tamanho === anexoObj.tamanho);
+    if (!exists) {
+      this.formData.anexos.push(anexoObj);
+    }
+    if (triggerRender) {
+      this.renderFormPreview();
+    }
+    this.notifyChange("Anexos atualizados");
+  }
+
+  removeAnexo(anexoId) {
+    if (!this.formData.anexos) return;
+    this.formData.anexos = this.formData.anexos.filter(a => a.id !== anexoId);
+    this.renderFormPreview();
+    this.notifyChange("Anexo removido");
+  }
+
+  updateAnexoLegenda(anexoId, newLegenda) {
+    if (!this.formData.anexos) return;
+    const item = this.formData.anexos.find(a => a.id === anexoId);
+    if (item) {
+      item.legenda = newLegenda;
+      this.notifyChange("Legenda salva");
+    }
+  }
+
   // Comprime fotos capturadas na câmera ou celular (de 8MB para ~200KB)
   // Acelera o upload e a análise da IA em mais de 15x sem perder detalhes arquitetônicos
   compressImage(file, maxDimension = 1280, quality = 0.82) {
@@ -238,7 +284,7 @@ class PericiaApp {
     });
   }
 
-  async addFilesToStage(files) {
+  async addFilesToStage(files, fromDirect = false) {
     for (let file of files) {
       const isImg = file.type.startsWith("image/") || /\.(jpg|jpeg|png|webp)$/i.test(file.name);
       const isPdf = file.type === "application/pdf" || file.name.endsWith(".pdf");
@@ -268,8 +314,25 @@ class PericiaApp {
       }
 
       this.stagedFiles.push(fileObj);
+
+      // Adiciona formalmente aos Anexos do Laudo Pericial Atual
+      const anexoItem = {
+        id: "anx_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+        nome: file.name,
+        tipo: isImg ? "foto" : "documento",
+        mime: fileObj.type || (isImg ? "image/jpeg" : "application/pdf"),
+        base64: fileObj.base64,
+        tamanho: fileObj.size,
+        legenda: isImg ? `Registro fotográfico in loco (${file.name.replace(/\.[^.]+$/, "")})` : `Documento comprobatório juntado (${file.name})`,
+        categoria: isImg ? "Inspeção Visual da Moradia" : "Documento Comprobatório"
+      };
+      this.addAnexo(anexoItem, false);
     }
     this.renderStagedFiles();
+    this.renderFormPreview();
+    if (fromDirect) {
+      this.scrollToPage(7);
+    }
   }
 
   async extractPdfText(file, fileObj) {
@@ -460,7 +523,7 @@ Com base neles, o **Visum Social** realiza a **inspeção visual minuciosa das i
   }
 
   // =====================================================================
-  // PROCESSAMENTO DA EXTRAÇÃO (GEMINI MULTIMODAL OU DEMO INTELIGENTE)
+  // PROCESSAMENTO DA EXTRAÇÃO E MODO TUTORA ASSISTENTE SOCIAL
   // =====================================================================
   async handleSendMessage() {
     const userText = this.chatInput.value.trim();
@@ -473,6 +536,14 @@ Com base neles, o **Visum Social** realiza a **inspeção visual minuciosa das i
     this.stagedFiles = [];
     this.renderStagedFiles();
 
+    // 1. VERIFICA SE É PERGUNTA, DÚVIDA OU ORIENTAÇÃO AO TUTOR/PERITA
+    // Se não tiver arquivos e for uma pergunta/conversa, responde como Tutora e NÃO apaga os dados do laudo
+    if (files.length === 0 && this.isQuestionOrConsultation(userText)) {
+      await this.handleTutorConsultation(userText);
+      return;
+    }
+
+    // 2. CASO CONTRÁRIO: FLUXO DE EXTRAÇÃO PERICIAL E ANÁLISE DE FOTOS/DOCUMENTOS
     // PRIORIDADE DE IA:
     // 1. Servidor automático (/api/extract) — chave no backend, sem configuração
     // 2. Chave local do usuário (se configurada nas settings)
@@ -484,6 +555,182 @@ Com base neles, o **Visum Social** realiza a **inspeção visual minuciosa das i
     } else {
       await this.processWithLocalExtractor(userText, files);
     }
+  }
+
+  isQuestionOrConsultation(text) {
+    if (!text) return false;
+    const trimmed = text.trim();
+    if (trimmed.endsWith("?")) return true;
+    
+    // Se contiver padrões explícitos de cadastro do formulário pericial, não é pergunta
+    if (/processo[:\s]+\d/i.test(trimmed) || /cpf[:\s]+\d/i.test(trimmed) || /rg[:\s]+\d/i.test(trimmed) || /periciado[:\s]+/i.test(trimmed)) {
+      return false;
+    }
+
+    const keywords = [
+      "o que", "como", "qual", "quais", "por que", "porque", "quem", "quando",
+      "ajuda", "ajude", "tutor", "tutora", "orienta", "orientação", "dica", "explic",
+      "loas", "bpc", "lei 8.742", "salário mínimo", "salario minimo", "renda per capita",
+      "visita domiciliar", "estudo social", "parecer", "vulnerabilidade", "barreira",
+      "deficiência", "deficiencia", "impedimento", "modelo", "portaria", "cojef",
+      "anexo iv", "complexidade", "risco social", "distancia", "municipio", "fotos",
+      "ola", "olá", "bom dia", "boa tarde", "boa noite", "oi", "funciona"
+    ];
+    
+    const lower = trimmed.toLowerCase();
+    return keywords.some(k => lower.includes(k));
+  }
+
+  async handleTutorConsultation(userText) {
+    this.showTypingIndicator("Consultando Tutora e Perita Assistente Social (Dra. Ivonete)...");
+
+    let aiResponse = null;
+    const tutorPrompt = `Você é a Dra. Ivonete Ferreira Maciel, Doutora em Serviço Social e Perita Judicial Oficial junto à Justiça Federal (Juizados Especiais Federais - JEF).
+Você atua como Tutora e Mentora para peritos(as) e assistentes sociais que elaboram laudos socioeconômicos do BPC/LOAS (Lei nº 8.742/93, Portaria COJEF/NUCOD/AP Nº 01 de 10/02/2015 Anexo IV).
+
+DÚVIDA / CONSULTA DO(A) COLEGA PERITO(A):
+"${userText}"
+
+DIRETRIZES DA SUA RESPOSTA:
+1. Seja acolhedora, profissional e extremamente embasada nas legislações e normas vigentes:
+   - LOAS (Lei 8.742/93, Art. 20)
+   - Estatuto da Pessoa com Deficiência (Lei 13.146/2015)
+   - Jurisprudência do STF (RE 567.985 - inconstitucionalidade parcial do critério de 1/4 SM quando há comprovação de miserabilidade real por outros meios)
+   - Súmulas da TNU e regras de dedução de despesas de medicamentos, fraldas e tratamentos contínuos não fornecidos pelo SUS
+   - Portaria COJEF da Justiça Federal do Amapá (Classificação de 1 a 3 para complexidade, risco, distância, dificuldade de acesso e risco social)
+2. Se a dúvida for sobre como redigir algum campo do estudo social, forneça uma sugestão textual técnica pronta entre aspas que a colega perita possa utilizar no laudo oficial.
+3. Se a dúvida for sobre fotos ou documentos, explique o que deve ser fotografado na visita in loco (fachada, cômodos, tipo de piso, telhado, bens básicos de sobrevivência) e comprovantes necessários.
+4. Responda em Markdown claro, com tópicos e linguagem pericial forense impecável.`;
+
+    if (this.apiKey) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.selectedModel}:generateContent?key=${this.apiKey}`;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: tutorPrompt }] }],
+            generationConfig: { temperature: 0.3 }
+          })
+        });
+        clearTimeout(timeout);
+        if (res.ok) {
+          const data = await res.json();
+          aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        }
+      } catch (e) {
+        console.warn("Tutor IA via API falhou, usando fallback:", e);
+      }
+    } else if (this.useServerAI) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        const res = await fetch("/api/extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            parts: [{ text: tutorPrompt }],
+            model: this.selectedModel
+          })
+        });
+        clearTimeout(timeout);
+        if (res.ok) {
+          const data = await res.json();
+          aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || data.text;
+        }
+      } catch (e) {
+        console.warn("Tutor IA server falhou:", e);
+      }
+    }
+
+    this.hideTypingIndicator();
+
+    if (aiResponse) {
+      this.addAssistantMessage(`👩‍⚖️ **Orientações da Tutora Pericial (Dra. Ivonete):**\n\n${aiResponse}`);
+    } else {
+      const offlineAnswer = this.getOfflineTutorResponse(userText);
+      this.addAssistantMessage(`👩‍⚖️ **Tutora e Perita Assistente Social (Dra. Ivonete):**\n\n${offlineAnswer}`);
+    }
+  }
+
+  getOfflineTutorResponse(userText) {
+    const q = (userText || "").toLowerCase();
+
+    if (q.includes("renda") || q.includes("loas") || q.includes("1/4") || q.includes("salario") || q.includes("salário")) {
+      return `### 💡 Critério de Renda e Miserabilidade no BPC/LOAS (Art. 20, Lei nº 8.742/93)
+
+Colega, o critério legal objetivo inicial é a renda mensal per capita inferior a **1/4 do salário-mínimo** (atualmente R$ 353,00, considerando o salário-mínimo de R$ 1.412,00).
+
+No entanto, no **Serviço Social Forense e na jurisprudência consolidada do STF (RE 567.985/MT)**:
+1. **Flexibilização do Critério Objetivo:** O critério de 1/4 SM não é taxativo absoluto. Deve-se avaliar o conjunto probatório de vulnerabilidade real.
+2. **Dedução de Gastos Obrigatórios de Saúde (Tema 173 da TNU e Lei 14.176/2021):** Devem ser deduzidos da renda bruta familiar os gastos mensais comprovados com:
+   - Medicamentos não fornecidos gratuitamente pelo SUS;
+   - Fraldas geriátricas/descartáveis contínuas;
+   - Alimentação especial prescrita por nutricionista/médico;
+   - Consultas, terapias e transporte até clínicas especializadas.
+
+**Sugestão de redação para seu parecer:**
+> *"Embora a renda per capita declarada se aproxime do teto legal, constata-se que a totalidade dos proventos é consumida pela aquisição de medicamentos contínuos e transporte para tratamento, restando o núcleo familiar desprovido do mínimo existencial para alimentação e moradia digna, configurando a miserabilidade sob a ótica socioeconômica material."*`;
+    }
+
+    if (q.includes("foto") || q.includes("imagem") || q.includes("moradia") || q.includes("visita")) {
+      return `### 📸 O que Registrar na Visita Domiciliar In Loco:
+
+Para que seu laudo pericial tenha força probatória incontestável perante o Juiz Federal:
+1. **Fachada e Logradouro:** Fotografe a frente do imóvel e a rua, evidenciando se há asfalto, saneamento básico, iluminação pública ou se é rua de terra/lama de difícil acesso.
+2. **Cômodos Principais:** Registre quarto, sala e cozinha, mostrando as condições de higiene, iluminação e ventilação.
+3. **Piso e Cobertura:** Documente o tipo de chão (chão batido, cimento rústico ou lajota) e o telhado (amianto/fibrocimento, telha de barro ou zinco).
+4. **Inventário de Bens Móveis:** Demonstre que os bens existentes (geladeira simples, fogão a gás, cama) são estritamente de sobrevivência elementar, atestando a ausência de quaisquer itens de luxo ou supérfluos.
+5. **Armazenamento de Medicamentos / Laudos:** Se houver receitas, caixas de remédios ou fraldas, fotografe para anexar na **Página 7 (Anexos)** deste relatório.
+
+💡 *Todos os arquivos e fotos que você anexar aqui no chat ou pelo botão da Página 7 serão inseridos automaticamente com legendas técnicas no seu laudo!*`;
+    }
+
+    if (q.includes("complexidade") || q.includes("risco") || q.includes("distancia") || q.includes("portaria") || q.includes("cojef")) {
+      return `### ⚖️ Classificação de 1 a 3 da Perícia (Portaria COJEF/NUCOD/AP Nº 01/2015):
+
+No encerramento da Página 6 do formulário oficial, você deve pontuar de 1 (baixo) a 3 (elevado) os 5 quesitos:
+- **Complexidade:** 
+  - *1:* Caso direto com documentos regulares.
+  - *2:* Divergência cadastral no CadÚnico ou multiplicidade de fontes informais de renda.
+  - *3:* Severo comprometimento biopsicossocial, necessidade de curatela ou patologias raras com barreiras múltiplas.
+- **Risco:** Pontue 2 ou 3 se a localidade exigir deslocamento com escolta, área dominada por facções ou áreas de risco geológico/alagamento.
+- **Distância:** 
+  - *1:* Perímetro urbano central da comarca (Macapá).
+  - *2:* Região metropolitana/distritos (Santana, Mazagão Novo, Rodovias).
+  - *3:* Comunidades ribeirinhas, ramais rurais, arquipélago do Bailique ou municípios distantes (acima de 50 km).
+- **Dificuldade de Acesso:** Pontue 3 para estradas de chão em período chuvoso, pontes de madeira/palafitas precárias ou necessidade de transporte fluvial/catraia.
+- **Risco Social:** Avalia a vulnerabilidade territorial, ausência de equipamentos públicos (CRAS, UBS, escolas) e precarização comunitária.`;
+    }
+
+    if (q.includes("parecer") || q.includes("estudo") || q.includes("conclusão") || q.includes("conclusao")) {
+      return `### 📝 Como Estruturar o Estudo Social e o Parecer Conclusivo:
+
+O Parecer Técnico do Assistente Social deve responder categoricamente:
+1. **O periciado atende ao critério de miserabilidade econômica?**
+2. **A família dispõe de meios próprios para prover sua subsistência digna?**
+3. **O ambiente social e territorial agrava a vulnerabilidade?**
+
+**Sugestão de redação favorável:**
+> *"Após criteriosa análise técnica, fundamentada em visita domiciliar in loco, entrevista socioeconômica, registros fotográficos e documentação juntada aos autos, conclui-se que o requerente encontra-se em situação de vulnerabilidade econômica severa, sem renda própria estável e dependente de auxílio eventual de terceiros. A família não dispõe de meios materiais para prover sua subsistência com dignidade, restando plenamente comprovado o amparo legal e social preconizado na Lei 8.742/93 (LOAS) para a concessão do BPC."*`;
+    }
+
+    return `### Olá, colega assistente social! 👩‍⚖️
+
+Eu sou a **Dra. Ivonete Ferreira Maciel**, sua tutora técnica em perícias socioeconômicas judiciais (BPC/LOAS).
+
+Posso orientar você em qualquer etapa da sua perícia:
+- 📌 **Dúvidas sobre cálculo de renda per capita e deduções** (gastos com fraldas, remédios e terapias);
+- 📸 **Como instruir o relatório fotográfico in loco** (o que registrar na moradia);
+- ⚖️ **Fundamentação jurídica do Serviço Social** (LOAS, Estatuto da PCD, RE 567.985/STF);
+- 📊 **Classificação de 1 a 3 da Portaria COJEF** (complexidade, distância e risco social);
+- ✍️ **Redação técnica oficial do Estudo Social e Parecer Conclusivo**.
+
+Basta me fazer uma pergunta aqui ou anexar os documentos/fotos da sua perícia para que o laudo de 7 páginas oficiais seja preenchido automaticamente!`;
   }
 
   deepMerge(target, source) {
@@ -907,13 +1154,15 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
 
   resetToBlankForm() {
     this.formData = JSON.parse(JSON.stringify(DEFAULT_FORM_DATA));
+    this.formData.anexos = [];
+    this.currentPericiaId = null;
     this.renderFormPreview();
     this.flashDocumentUpdate();
     this.scrollToPage(1);
     document.querySelectorAll(".chip-btn").forEach(c => c.classList.remove("active"));
     const btn = document.getElementById("btnNovoLaudo");
     if (btn) btn.classList.add("active");
-    this.addAssistantMessage("📋 Formulário em branco do **Anexo IV da Justiça Federal** carregado com sucesso. Você pode preencher os dados diretamente na folha ao lado ou enviar os documentos e fotos para preenchimento por IA.");
+    this.addAssistantMessage("✨ **Modelo Oficial em Branco da Justiça Federal** carregado com sucesso!\n\nTodos os campos estão livres e limpos para o novo periciado. Você pode digitar diretamente nas páginas ao lado, ou anexar fotos da residência e documentos comprobatórios.");
   }
 
   cb(checked, label) {
@@ -1309,8 +1558,123 @@ Você pode editar diretamente na folha A4 à direita e clicar em **"Baixar Word 
           </div>
           ${footerHtml(6)}
         </div>
+
+        <!-- ==================== PÁGINA 7: ANEXOS OFICIAIS ==================== -->
+        <div class="official-page" id="page-7">
+          ${headerHtml}
+          <div class="page-content-body">
+            <div class="judicial-form-title">ANEXO FOTOGRÁFICO E DOCUMENTAL DA VISITA DOMICILIAR</div>
+            <div style="font-size:8pt; text-align:center; color:#555; margin-bottom:10px; font-style:italic;">
+              Inspeção in loco da moradia, habitabilidade e documentos probatórios juntados aos autos judiciais.
+            </div>
+
+            ${(() => {
+              const anexos = Array.isArray(d.anexos) ? d.anexos : [];
+              const fotos = anexos.filter(a => a.tipo === "foto" || (a.mime && a.mime.startsWith("image/")) || (a.name && /\.(jpg|jpeg|png|webp)$/i.test(a.name)));
+              const docs = anexos.filter(a => !(a.tipo === "foto" || (a.mime && a.mime.startsWith("image/")) || (a.name && /\.(jpg|jpeg|png|webp)$/i.test(a.name))));
+
+              if (anexos.length === 0) {
+                return `
+                  <div class="anexos-empty-state">
+                    <span class="anexos-empty-icon">📷</span>
+                    <div class="anexos-empty-title">Nenhum registro fotográfico ou documento anexado ainda</div>
+                    <div class="anexos-empty-desc">
+                      As fotografias da visita domiciliar (fachada, cômodos, instalações) e documentos oficiais (CadÚnico, laudos médicos, certidões) anexados constarão aqui formalmente como anexos do laudo pericial oficial.
+                    </div>
+                    <button type="button" class="anexos-btn-add" onclick="document.getElementById('anexoDirectInput').click()">
+                      <span>+</span> Adicionar Fotos ou Documentos da Visita
+                    </button>
+                  </div>
+                `;
+              }
+
+              let fotosHtml = "";
+              if (fotos.length > 0) {
+                fotosHtml = `
+                  <div class="judicial-section-title" style="margin-top:4px;">1. REGISTROS FOTOGRÁFICOS DA VISITA IN LOCO (${fotos.length})</div>
+                  <div class="anexos-grid">
+                    ${fotos.map((f, idx) => `
+                      <div class="anexo-card">
+                        <div class="anexo-card-header">
+                          <span>Foto ${idx + 1}: ${f.categoria || 'Inspeção in loco'}</span>
+                          <button type="button" class="anexo-btn-del" onclick="app.removeAnexo('${f.id}')" title="Excluir este anexo">× Excluir</button>
+                        </div>
+                        <div class="anexo-img-wrapper">
+                          ${f.base64 ? `<img src="data:${f.mime || 'image/jpeg'};base64,${f.base64}" alt="Foto ${idx + 1}" />` : `<div style="padding:20px; font-size:9pt; color:#666;">Arquivo: ${f.nome || f.name}</div>`}
+                        </div>
+                        <div class="anexo-legenda-box">
+                          <div class="anexo-legenda-editable" contenteditable="true" data-anexo-id="${f.id}" title="Clique para editar a legenda do registro fotográfico">${f.legenda || f.nome || 'Registro fotográfico in loco'}</div>
+                        </div>
+                      </div>
+                    `).join("")}
+                  </div>
+                  <div style="text-align:right; margin-top:8px;">
+                    <button type="button" class="btn-action-doc" style="display:inline-flex; font-size:7.5pt; padding:3px 8px; margin-left:auto;" onclick="document.getElementById('anexoDirectInput').click()">
+                      <span>📷</span> Adicionar Mais Fotos da Visita
+                    </button>
+                  </div>
+                `;
+              }
+
+              let docsHtml = "";
+              if (docs.length > 0) {
+                docsHtml = `
+                  <div class="judicial-section-title" style="margin-top:14px;">2. DOCUMENTOS OFICIAIS E COMPROBATÓRIOS JUNTADOS (${docs.length})</div>
+                  <table class="judicial-table" style="margin-top:6px;">
+                    <thead>
+                      <tr>
+                        <th style="width:8%; text-align:center;">Nº</th>
+                        <th style="width:44%;">DOCUMENTO / ARQUIVO</th>
+                        <th style="width:26%;">CATEGORIA</th>
+                        <th style="width:14%;">TAMANHO</th>
+                        <th style="width:8%; text-align:center;">AÇÃO</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${docs.map((dc, idx) => `
+                        <tr>
+                          <td style="text-align:center;">${idx + 1}</td>
+                          <td><strong>${dc.nome || dc.name}</strong></td>
+                          <td>${dc.categoria || 'Documento Comprobatório'}</td>
+                          <td>${dc.tamanho || dc.size || '-'}</td>
+                          <td style="text-align:center;">
+                            <button type="button" class="anexo-btn-del" onclick="app.removeAnexo('${dc.id}')" title="Remover este documento">×</button>
+                          </td>
+                        </tr>
+                      `).join("")}
+                    </tbody>
+                  </table>
+                  <div style="text-align:right; margin-top:6px;">
+                    <button type="button" class="btn-action-doc" style="display:inline-flex; font-size:7.5pt; padding:3px 8px; margin-left:auto;" onclick="document.getElementById('fileInput').click()">
+                      <span>📎</span> Juntar Mais Documentos
+                    </button>
+                  </div>
+                `;
+              }
+
+              return fotosHtml + docsHtml;
+            })()}
+          </div>
+          ${footerHtml(7)}
+        </div>
       </div>
     `;
+
+    // Atualiza contador de páginas na barra superior
+    const badgePages = document.getElementById("badgePagesCount");
+    if (badgePages) {
+      const totalAnexos = (d.anexos || []).length;
+      badgePages.textContent = totalAnexos > 0 ? `7 Páginas Judiciais (${totalAnexos} anexo${totalAnexos > 1 ? 's' : ''})` : `7 Páginas Judiciais (com Anexos)`;
+    }
+
+    // Vincula inputs de legenda dos anexos
+    this.a4Content.querySelectorAll(".anexo-legenda-editable").forEach(el => {
+      el.addEventListener("blur", (e) => {
+        const anexoId = e.target.getAttribute("data-anexo-id");
+        const val = e.target.innerText.trim();
+        this.updateAnexoLegenda(anexoId, val);
+      });
+    });
 
     // Vincula inputs com two-way data binding imediato (input + blur)
     this.a4Content.querySelectorAll("[contenteditable='true'][data-path]").forEach(el => {
@@ -1660,9 +2024,14 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
     localStorage.setItem("gemini_api_key", this.apiKey);
     localStorage.setItem("gemini_model", this.selectedModel);
 
+    this.updateStatusBadges();
     this.closeSettingsModal();
-    this.addAssistantMessage(`⚙️ Configurações salvas com sucesso! 
-    ${this.apiKey ? `Chave API configurada com o modelo **${this.selectedModel}**.` : "Modo de Demonstração / Extração Local ativo."}`);
+
+    if (this.apiKey) {
+      this.addAssistantMessage(`🟢 **Chave do Google Gemini Ativada com Sucesso!**\n\nModelo ativo: **${this.selectedModel}**.\nA IA agora está pronta para ler fotos da visita domiciliar e extrair dados periciais automaticamente.`);
+    } else {
+      this.addAssistantMessage(`ℹ️ Nenhuma chave pessoal configurada. O sistema operará no **Modo Inteligente Integrado com Tutora Pericial (Dra. Ivonete)**.`);
+    }
   }
 
   // =====================================================================

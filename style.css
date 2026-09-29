@@ -2260,4 +2260,144 @@ body {
   }
 }
 
+/* ==========================================================================
+   ESTILOS PARA PÁGINA DE ANEXOS OFICIAIS (FOTOGRAFIAS E DOCUMENTOS DA VISITA)
+   ========================================================================== */
+.anexos-container {
+  margin-top: 15px;
+}
+
+.anexos-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.anexo-card {
+  border: 1px solid #1a202c;
+  background: #ffffff;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  page-break-inside: avoid;
+}
+
+.anexo-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 8pt;
+  font-weight: bold;
+  color: #1a202c;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+.anexo-img-wrapper {
+  width: 100%;
+  height: 200px;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+}
+
+.anexo-img-wrapper img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s;
+}
+
+.anexo-legenda-box {
+  margin-top: 6px;
+  font-size: 8.5pt;
+  line-height: 1.35;
+  color: #1e293b;
+}
+
+.anexo-legenda-editable {
+  min-height: 28px;
+  padding: 3px 4px;
+  border-bottom: 1px dashed #94a3b8;
+  outline: none;
+  font-style: italic;
+}
+
+.anexo-legenda-editable:focus {
+  background: #f0fdf4;
+  border-bottom: 1.5px solid var(--color-cyan-primary);
+}
+
+.anexo-btn-del {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 7.5pt;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.anexo-btn-del:hover {
+  background: #dc2626;
+  color: white;
+}
+
+.anexos-empty-state {
+  border: 2px dashed #cbd5e1;
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 35px 20px;
+  text-align: center;
+  margin-top: 20px;
+}
+
+.anexos-empty-icon {
+  font-size: 2.2rem;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.anexos-empty-title {
+  font-weight: 700;
+  font-size: 11pt;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.anexos-empty-desc {
+  font-size: 9pt;
+  color: #64748b;
+  max-width: 480px;
+  margin: 0 auto 16px;
+  line-height: 1.45;
+}
+
+.anexos-btn-add {
+  background: var(--color-cyan-primary);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 8.5pt;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(0, 124, 156, 0.25);
+}
+
+.anexos-btn-add:hover {
+  background: #00607a;
+}
+
+
 
