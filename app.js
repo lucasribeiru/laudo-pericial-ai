@@ -233,9 +233,9 @@ class PericiaApp {
     }
   }
 
-  // Comprime fotos capturadas na câmera ou celular (de 8MB para ~200KB)
-  // Acelera o upload e a análise da IA em mais de 15x sem perder detalhes arquitetônicos
-  compressImage(file, maxDimension = 1280, quality = 0.82) {
+  // Comprime fotos capturadas na câmera ou celular (de 8MB para ~80KB)
+  // Permite enviar dezenas de fotos sem estourar limites de servidor
+  compressImage(file, maxDimension = 960, quality = 0.70) {
     return new Promise((resolve) => {
       if (!file.type.startsWith("image/") && !/\.(jpg|jpeg|png|webp)$/i.test(file.name)) {
         resolve(file);
@@ -937,11 +937,12 @@ Todas as seções do **Formulário de Perícia Socioeconômica (Anexo IV)** fora
         this.formData
       );
     } catch (err) {
-      console.error(err);
-      this.hideTypingIndicator();
-      this.addAssistantMessage(`⚠️ Não foi possível concluir a extração via Gemini API: **${err.message}**.
-      
-Verifique sua chave de API nas configurações ou utilize a extração inteligente integrada.`);
+      console.warn("Gemini API direta falhou, acionando fallback automático:", err);
+      if (this.useServerAI) {
+        return await this.processWithServerAI(userText, files);
+      } else {
+        return await this.processWithLocalExtractor(userText, files);
+      }
     }
   }
 
@@ -2253,8 +2254,13 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
       const systemPrompt = this._buildSystemPrompt();
       contentsParts.push({ text: systemPrompt + "\n\nInstruções/Anotações adicionais do perito:\n" + userText });
 
-      // Anexa arquivos como inline_data
+      // Anexa arquivos de forma inteligente (prioriza texto para PDFs e imagens compactadas)
       for (const f of files) {
+        if (f.extractedText) {
+          contentsParts.push({ text: `CONTEÚDO DO DOCUMENTO [${f.name}]:\n${f.extractedText}` });
+          continue;
+        }
+
         let base64Data = f.base64;
         if (!base64Data && f.fileRef) {
           try {
@@ -2269,8 +2275,6 @@ Ele segue estritamente o modelo oficial da Justiça Federal / Seção Judiciári
           contentsParts.push({
             inline_data: { mime_type: mime, data: base64Data }
           });
-        } else if (f.extractedText) {
-          contentsParts.push({ text: `CONTEÚDO DO DOCUMENTO [${f.name}]:\n${f.extractedText}` });
         }
       }
 
@@ -2590,7 +2594,8 @@ Retorne EXCLUSIVAMENTE um objeto JSON válido (sem markdown) com o schema do for
   checkOnboarding() {
     const onboardingModal = document.getElementById("onboardingModal");
     const skipped = sessionStorage.getItem("visum_onboarding_skipped");
-    if (!this.apiKey && !skipped && onboardingModal) {
+    // Se a IA do servidor já estiver conectada, não incomoda o usuário com pedido de chave
+    if (!this.apiKey && !skipped && onboardingModal && !this.useServerAI) {
       setTimeout(() => onboardingModal.classList.add("open"), 600);
     }
   }
