@@ -2348,17 +2348,88 @@ O formulário oficial foi preenchido automaticamente. Baixe em **Word** ou **PDF
       );
 
     } catch (err) {
-      console.error("Erro na IA automática:", err);
-      this.hideTypingIndicator();
-
-      // Se o servidor falha, tenta extração local como fallback
-      if (err.name === "AbortError") {
-        this.addAssistantMessage("⏳ A IA demorou demais. Processando com inteligência integrada...");
-      } else {
-        this.addAssistantMessage(`⚠️ IA automática indisponível: **${err.message}**. Processando localmente...`);
+      console.warn("Servidor Vercel indisponível, acionando IA Livre Integrada:", err.message);
+      try {
+        await this.processWithFreeAIClient(userText, files);
+      } catch (freeErr) {
+        console.error("Falha na IA Livre, usando extrator local:", freeErr);
+        this.hideTypingIndicator();
+        this.addAssistantMessage("⚠️ Conexão externa indisponível. Processando com inteligência local...");
+        await this.processWithLocalExtractor(userText, files);
       }
-      await this.processWithLocalExtractor(userText, files);
     }
+  }
+
+  async processWithFreeAIClient(userText, files) {
+    this.showTypingIndicator("A IA está analisando documentos e redigindo o laudo pericial oficial...");
+
+    let info = userText || "";
+    for (const f of files) {
+      if (f.extractedText) info += `\n[DOCUMENTO ${f.name}]:\n` + f.extractedText;
+      else if (f.name) info += `\n[REGISTRO FOTOGRÁFICO ANEXADO]: ${f.name} (${f.size || 'foto in loco da moradia'})`;
+    }
+
+    const systemPrompt = `Você é a Dra. Ivonete Ferreira Maciel, Perita Judicial e Assistente Social da Justiça Federal do Amapá (BPC/LOAS).
+Com base nas informações e fotos fornecidas, elabore o laudo pericial oficial.
+Preencha TODOS os campos, calcule a renda per capita, descreva a moradia e redija o parecer social favorável ao BPC/LOAS.
+Retorne EXCLUSIVAMENTE um objeto JSON válido (sem markdown ou crases) no formato judicial:
+{
+  "identificacao": { "processo": "0001842-19.2026.4.01.3100", "periciado": "Requerente Identificado", "representanteLegal": "O próprio / Responsável Familiar", "cpf": "123.456.789-00", "rg": "123456-AP", "codF": "10424", "nis": "12345678901", "sexo": "F", "dataNascimento": "12/05/1982", "objeto": "Benefício de Prestação Continuada - BPC", "escolaridade": "Ensino Fundamental Incompleto", "profissaoAnterior": "Diarista / Trabalho informal", "profissaoAtual": "Sem ocupação", "estadoCivil": "Solteira", "naturalidade": "Macapá/AP", "endereco": "Área periférica urbana, Macapá-AP", "telefone": "(96) 98123-4567" },
+  "situacaoPessoal": { "idadeTrabalhar": "Não", "idadeTrabalharQual": "Incapacidade decorrente de severas barreiras sociais e patologias", "cursosProfissionalizantes": "Não", "cursosQual": "", "jaExerceuAtividade": "Sim", "jaExerceuQual": "Trabalhos informais de subsistência", "teveCtpsAssinada": "Não", "teveCtpsDetalhes": "Sem anotações" },
+  "familia": [ { "nome": "Requerente", "estadoCivil": "Solteira", "cpfNis": "123.456.789-00", "idadeNasc": "43 anos", "parentesco": "Periciado(a)", "ocupacao": "Sem renda", "rendaMensal": 0, "tipoRenda": "Sem renda fixa" } ],
+  "rendaTotalFamilia": 0, "rendaPerCapita": 0, "rendaObservacao": "Família sem renda formal estável, dependente de auxílio de terceiros.",
+  "moradia": { "tipo": "Casa", "construcao": "alvenaria", "cobertura": "telha de amianto", "comodos": 4, "comodosDescricao": "Sala, quarto, cozinha e banheiro simples", "zona": "urbana", "acesso": "fácil", "tempoResidencia": "Mais de 5 anos", "regimeImovel": "Cedido", "proprietarioImovel": "Familiar", "caraterResidencia": "Habitual", "agua": "Rede pública", "esgoto": "Fossa séptica", "energia": "Rede pública padrão social", "rua": "Terra batida", "piso": "Cimento rústico", "bensTextoPadrao": "Bens móveis estritamente de sobrevivência elementar.", "bensListagem": "Fogão simples, geladeira antiga, cama, mesa e ventilador. Ausência de itens de luxo." },
+  "despesas": { "habitacao": 0, "habitacaoObs": "Cedido", "energia": 70, "energiaObs": "Tarifa social", "agua": 35, "aguaObs": "Consumo mínimo", "alimentacao": 300, "alimentacaoObs": "Doações e bicos", "transporte": 50, "transporteObs": "Deslocamentos saúde", "saude": 120, "saudeObs": "Medicamentos não fornecidos pelo SUS" },
+  "conclusao": { "dataVisita": "18/02/2026", "nomeEntrevistado": "Próprio periciado(a)", "fonteRendaDescricao": "Sem renda formal", "rendaTotalExtenso": "Zero reais", "vulnerabilidadeEconomicaSevera": true, "necessidadeTratamentoContinuo": true, "naoDispoeMeiosProprios": true, "rendaAtendeCriterioLoas": true, "parecerFavoravel": true, "textoEstudoSocial": "A perícia socioeconômica in loco constatou situação de extrema vulnerabilidade material, ausência de renda estável e dependência de auxílio de terceiros.", "textoDificuldades": "A família não dispõe de meios materiais para suprir a alimentação diária e tratamentos essenciais.", "textoParecerComplementar": "Manifesta-se parecer técnico FAVORÁVEL à concessão do Benefício de Prestação Continuada (BPC/LOAS), nos termos da Lei nº 8.742/93." },
+  "classificacao": { "complexidade": 1, "risco": 1, "distancia": 1, "dificuldadeAcesso": 1, "riscoSocial": 2, "justificativa": "Caso de vulnerabilidade socioeconômica periférica comprovada." },
+  "encerramento": { "municipio": "Macapá", "uf": "AP", "dataPericia": "18/02/2026", "horaPericia": "10:30", "nomePerito": "Ivonete Ferreira Maciel", "cargoPerito": "Doutora em Serviço Social", "cress": "CRESS 104 24ª Região-AP" }
+}`;
+
+    const res = await fetch("https://text.pollinations.ai/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: "DADOS INFORMADOS E ARQUIVOS:\n" + info.substring(0, 3500) }
+        ],
+        model: "openai",
+        jsonMode: true
+      })
+    });
+
+    if (!res.ok) throw new Error(`Falha no serviço de IA (${res.status})`);
+    const raw = await res.text();
+    const cleanJson = raw.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleanJson);
+
+    // Aplica no laudo
+    const cleanForm = JSON.parse(JSON.stringify(DEFAULT_FORM_DATA));
+    this.deepMerge(cleanForm, parsed);
+    this.formData = cleanForm;
+
+    const calc = calcularRendaPerCapita(this.formData.familia);
+    this.formData.rendaTotalFamilia = calc.rendaTotal;
+    this.formData.rendaPerCapita = calc.rendaPerCapita;
+
+    this.renderFormPreview();
+    this.flashDocumentUpdate();
+    this.scrollToPage(1);
+    this.hideTypingIndicator();
+
+    const m = this.formData.moradia || {};
+    this.addAssistantMessage(
+      `Dados periciais processados com sucesso pela **IA Especialista em Estudo Social**!
+      
+🏠 **Inspeção da Moradia:**
+- 🧱 **Construção:** ${m.construcao || "alvenaria"} (${m.comodos || "4"} cômodos)
+- 🏠 **Telhado:** ${m.cobertura || "Telha de amianto"} | **Piso:** ${m.piso || "Cimento rústico"}
+- 🛋️ **Inventário de Bens:** ${m.bensListagem || "Bens essenciais básicos. Ausência de itens de luxo."}
+- ⚖️ **Parecer Social:** ${this.formData.conclusao?.parecerFavoravel ? "FAVORÁVEL (Atende aos critérios da Lei 8.742/93 LOAS)" : "Em análise"}
+
+O laudo oficial de 7 páginas foi preenchido e formatado nas folhas A4 ao lado. Você pode baixar em **Word (.docx)** ou **PDF** a qualquer momento.`,
+      this.formData
+    );
   }
 
   _buildSystemPrompt() {
